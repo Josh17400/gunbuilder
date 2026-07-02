@@ -1,0 +1,4 @@
+- [Gunbuilder data layer conventions](project_gunbuilder_data_layer.md) — stats.js/parts.js/compat.js design decisions worth knowing before touching them again
+- [Gunbuilder player controller + HUD (owner D1)](project_gunbuilder_game_d1.md) — recoil model, collision approach, setCrosshairSpread contract deviation, HUD DOM lifecycle
+- [Gunbuilder contracts & ownership split](project_gunbuilder_contracts.md) — multi-agent build against CONTRACTS.md, who owns which files, key conventions
+- [Gunbuilder core module notes (owner A)](gunbuilder_core_module_notes.md) — Input/TouchControls 4-arg wiring, touch layout, audio synth approach, ScreenManager.goTo resize

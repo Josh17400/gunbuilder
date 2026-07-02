@@ -1,0 +1,747 @@
+/* Gunbuilder — shared UI theme. Dark, stylized, accent #ffb347.
+   Class prefix: gb-. Canvas is #game, DOM overlays live in #ui, touch
+   controls are injected into #touch by src/core/touchControls.js. */
+
+:root {
+  --gb-bg: #0b0c10;
+  --gb-bg-2: #111319;
+  --gb-panel: #171a22;
+  --gb-panel-2: #1e222c;
+  --gb-panel-3: #262b38;
+  --gb-border: rgba(255, 255, 255, 0.1);
+  --gb-text: #eceef2;
+  --gb-text-dim: #9aa0ac;
+  --gb-accent: #ffb347;
+  --gb-accent-dim: #cc8f38;
+  --gb-good: #7ee081;
+  --gb-danger: #ff6a6a;
+  --gb-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+  --gb-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--gb-bg);
+  color: var(--gb-text);
+  font-family: var(--gb-font);
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+/* ---------------------------------------------------------------------
+   Core layout: fullscreen fixed canvas + DOM overlay layers
+--------------------------------------------------------------------- */
+
+#game {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: block;
+  background: var(--gb-bg);
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  pointer-events: none; /* individual widgets opt back in */
+  z-index: 10;
+  font-family: var(--gb-font);
+}
+
+#touch {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100dvh;
+  z-index: 30;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------
+   Buttons / panels / cards / tabs / toast — shared building blocks
+--------------------------------------------------------------------- */
+
+.gb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 52px;
+  padding: 12px 22px;
+  border-radius: 12px;
+  background: var(--gb-panel-2);
+  border: 1px solid var(--gb-border);
+  color: var(--gb-text);
+  font: 700 15px/1 var(--gb-font);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  pointer-events: auto;
+  transition: transform 0.08s ease, background 0.12s ease, border-color 0.12s ease;
+}
+.gb-btn:active {
+  transform: scale(0.96);
+  background: var(--gb-panel-3);
+}
+.gb-btn.gb-btn-primary {
+  background: var(--gb-accent);
+  border-color: var(--gb-accent);
+  color: #1a1408;
+}
+.gb-btn.gb-btn-primary:active {
+  background: var(--gb-accent-dim);
+}
+.gb-btn.gb-btn-danger {
+  background: rgba(255, 106, 106, 0.14);
+  border-color: rgba(255, 106, 106, 0.4);
+  color: var(--gb-danger);
+}
+.gb-btn:disabled,
+.gb-btn.gb-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.gb-panel {
+  background: var(--gb-panel);
+  border: 1px solid var(--gb-border);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.gb-card {
+  background: var(--gb-panel-2);
+  border: 2px solid var(--gb-border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 120px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  pointer-events: auto;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.08s ease;
+}
+.gb-card:active {
+  transform: scale(0.97);
+}
+.gb-card.gb-selected {
+  border-color: var(--gb-accent);
+  background: rgba(255, 179, 71, 0.12);
+}
+.gb-card.gb-disabled {
+  opacity: 0.5;
+  border-color: rgba(255, 106, 106, 0.3);
+  cursor: not-allowed;
+}
+.gb-card .gb-card-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--gb-text);
+}
+.gb-card .gb-card-blurb {
+  font-size: 11px;
+  color: var(--gb-text-dim);
+  margin-top: 2px;
+}
+.gb-card .gb-card-reason {
+  font-size: 10px;
+  color: var(--gb-danger);
+  margin-top: 4px;
+}
+
+.gb-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  min-height: 44px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--gb-text-dim);
+  font: 700 12px/1 var(--gb-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  pointer-events: auto;
+  transition: color 0.12s ease, background 0.12s ease, transform 0.08s ease;
+}
+.gb-tab:active {
+  transform: scale(0.96);
+}
+.gb-tab.gb-active {
+  color: var(--gb-accent);
+  background: rgba(255, 179, 71, 0.12);
+}
+
+.gb-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%) translateY(10px);
+  background: var(--gb-panel-2);
+  border: 1px solid var(--gb-border);
+  color: var(--gb-text);
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  text-align: center;
+  max-width: 80vw;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 50;
+}
+.gb-toast.gb-show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.gb-scrollx {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+.gb-scrollx::-webkit-scrollbar {
+  display: none;
+}
+
+.gb-hidden {
+  display: none !important;
+}
+
+/* ---------------------------------------------------------------------
+   Builder screen — stat panel: right column (>=900px) / bottom drawer
+--------------------------------------------------------------------- */
+
+.gb-stat-panel {
+  position: fixed;
+  pointer-events: auto;
+  background: var(--gb-panel);
+  border: 1px solid var(--gb-border);
+  z-index: 15;
+}
+
+.gb-stat-drawer-handle {
+  display: none;
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  margin: 0 auto 10px;
+}
+
+@media (min-width: 900px) {
+  .gb-stat-panel {
+    top: calc(16px + env(safe-area-inset-top));
+    right: calc(16px + env(safe-area-inset-right));
+    bottom: calc(96px + env(safe-area-inset-bottom));
+    width: 300px;
+    border-radius: 16px;
+    padding: 16px;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 899.98px) {
+  .gb-stat-panel {
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 42vh;
+    border-radius: 16px 16px 0 0;
+    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
+    transform: translateY(calc(100% - 46px));
+    transition: transform 0.22s ease;
+    overflow-y: auto;
+  }
+  .gb-stat-panel.gb-open {
+    transform: translateY(0);
+  }
+  .gb-stat-drawer-handle {
+    display: block;
+  }
+}
+
+.gb-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.gb-stat-row .gb-stat-label {
+  flex: 0 0 92px;
+  color: var(--gb-text-dim);
+}
+.gb-stat-row .gb-stat-bar {
+  position: relative;
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.gb-stat-row .gb-stat-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--gb-accent);
+  border-radius: 3px;
+}
+.gb-stat-row .gb-stat-value {
+  flex: 0 0 48px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.gb-stat-delta {
+  font-size: 10px;
+  margin-left: 4px;
+  font-weight: 700;
+}
+.gb-stat-delta.gb-better {
+  color: var(--gb-good);
+}
+.gb-stat-delta.gb-worse {
+  color: var(--gb-danger);
+}
+
+/* ---------------------------------------------------------------------
+   HUD
+--------------------------------------------------------------------- */
+
+/* Crosshair: container centered on screen; expects up to 4 child
+   elements (e.g. .gb-crosshair-line.gb-top/.gb-bottom/.gb-left/.gb-right)
+   offset by the --gb-spread custom property, which HUD.js updates via
+   setCrosshairSpread(). */
+.gb-crosshair {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  --gb-spread: 6px;
+  pointer-events: none;
+  z-index: 12;
+}
+.gb-crosshair.gb-hidden {
+  display: none;
+}
+.gb-crosshair-line {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+}
+.gb-crosshair-line.gb-top {
+  width: 2px;
+  height: 8px;
+  left: -1px;
+  top: calc(-1 * (var(--gb-spread) + 8px));
+}
+.gb-crosshair-line.gb-bottom {
+  width: 2px;
+  height: 8px;
+  left: -1px;
+  top: var(--gb-spread);
+}
+.gb-crosshair-line.gb-left {
+  height: 2px;
+  width: 8px;
+  top: -1px;
+  left: calc(-1 * (var(--gb-spread) + 8px));
+}
+.gb-crosshair-line.gb-right {
+  height: 2px;
+  width: 8px;
+  top: -1px;
+  left: var(--gb-spread);
+}
+
+.gb-ammo {
+  position: absolute;
+  left: 50%;
+  bottom: calc(26px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  text-align: center;
+  font: 700 28px/1 var(--gb-mono);
+  color: var(--gb-text);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 12;
+}
+.gb-ammo .gb-ammo-mag {
+  color: var(--gb-accent);
+}
+.gb-ammo .gb-ammo-reserve {
+  color: var(--gb-text-dim);
+  font-size: 0.55em;
+}
+.gb-ammo.gb-ammo-low .gb-ammo-mag {
+  color: var(--gb-danger);
+}
+
+.gb-timer {
+  position: absolute;
+  left: 50%;
+  top: calc(16px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  font: 700 32px/1 var(--gb-mono);
+  color: var(--gb-text);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  z-index: 12;
+}
+
+.gb-objective {
+  position: absolute;
+  left: 50%;
+  top: calc(64px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  font: 600 14px/1.4 var(--gb-font);
+  color: var(--gb-text-dim);
+  text-align: center;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 12;
+}
+
+.gb-lane-info {
+  position: absolute;
+  left: calc(16px + env(safe-area-inset-left));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  font: 500 12px/1.4 var(--gb-font);
+  color: var(--gb-text-dim);
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7);
+  pointer-events: none;
+  z-index: 12;
+}
+
+.gb-interact-prompt {
+  position: absolute;
+  left: 50%;
+  bottom: calc(120px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  background: rgba(10, 11, 14, 0.75);
+  border: 1px solid var(--gb-border);
+  border-radius: 10px;
+  padding: 8px 14px;
+  font: 600 13px/1 var(--gb-font);
+  color: var(--gb-text);
+  pointer-events: none;
+  z-index: 12;
+}
+
+.gb-message {
+  position: absolute;
+  left: 50%;
+  top: calc(110px + env(safe-area-inset-top));
+  transform: translateX(-50%);
+  background: rgba(10, 11, 14, 0.75);
+  border: 1px solid var(--gb-border);
+  border-radius: 10px;
+  padding: 8px 16px;
+  font: 600 13px/1 var(--gb-font);
+  color: var(--gb-text);
+  pointer-events: none;
+  z-index: 12;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.gb-message.gb-show {
+  opacity: 1;
+}
+
+/* Hitmarker: brief scale/fade pop, centered like the crosshair. */
+.gb-hitmarker {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin-left: -17px;
+  margin-top: -17px;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 13;
+}
+.gb-hitmarker::before,
+.gb-hitmarker::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 15px;
+  width: 100%;
+  height: 3px;
+  background: var(--gb-text);
+  border-radius: 2px;
+}
+.gb-hitmarker::before {
+  transform: rotate(45deg);
+}
+.gb-hitmarker::after {
+  transform: rotate(-45deg);
+}
+.gb-hitmarker.gb-crit::before,
+.gb-hitmarker.gb-crit::after {
+  background: var(--gb-accent);
+}
+.gb-hitmarker.gb-show {
+  animation: gb-hitmarker-pop 0.32s ease-out;
+}
+@keyframes gb-hitmarker-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* Simple DOM scope vignette shown during ADS with high-zoom optics. */
+.gb-scope-vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 25;
+  background: radial-gradient(circle at 50% 50%, transparent 0, transparent 29vh, #000 29.5vh);
+}
+.gb-scope-vignette::before,
+.gb-scope-vignette::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  background: rgba(0, 0, 0, 0.92);
+  transform: translate(-50%, -50%);
+}
+.gb-scope-vignette::before {
+  width: 2px;
+  height: 32vh;
+}
+.gb-scope-vignette::after {
+  width: 32vh;
+  height: 2px;
+}
+
+/* Pause / finish full-screen modal overlay. */
+.gb-pause {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 12, 0.72);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  pointer-events: auto;
+}
+.gb-pause .gb-panel {
+  width: min(380px, 88vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  text-align: center;
+}
+.gb-pause h2 {
+  margin: 0 0 14px;
+  font-size: 22px;
+  letter-spacing: 0.03em;
+  color: var(--gb-accent);
+}
+.gb-pause .gb-pause-stat {
+  font-size: 13px;
+  color: var(--gb-text-dim);
+  margin-bottom: 6px;
+}
+.gb-pause .gb-btn {
+  width: 100%;
+  margin-top: 10px;
+}
+
+/* ---------------------------------------------------------------------
+   Touch controls (injected into #touch by touchControls.js)
+--------------------------------------------------------------------- */
+
+.gb-touch {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.gb-touch-surface {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  background: transparent;
+}
+
+.gb-joystick {
+  position: absolute;
+  width: 120px;
+  height: 120px;
+  margin-left: -60px;
+  margin-top: -60px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+  z-index: 31;
+}
+.gb-joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  margin-left: -26px;
+  margin-top: -26px;
+  border-radius: 50%;
+  background: rgba(255, 179, 71, 0.55);
+  border: 2px solid rgba(255, 179, 71, 0.9);
+  pointer-events: none;
+}
+
+.gb-touchbtn {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 64px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  color: var(--gb-text);
+  font: 700 12px/1 var(--gb-font);
+  letter-spacing: 0.03em;
+  text-align: center;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  pointer-events: auto;
+  z-index: 32;
+  transition: background 0.08s ease, transform 0.08s ease, border-color 0.08s ease;
+}
+.gb-touchbtn.gb-active {
+  background: var(--gb-accent);
+  border-color: var(--gb-accent);
+  color: #1a1408;
+  transform: scale(0.94);
+}
+
+.gb-touchbtn-fire {
+  right: calc(22px + env(safe-area-inset-right));
+  bottom: calc(30px + env(safe-area-inset-bottom));
+  width: 92px;
+  height: 92px;
+  font-size: 15px;
+  background: rgba(255, 90, 90, 0.16);
+  border-color: rgba(255, 120, 120, 0.4);
+}
+.gb-touchbtn-fire.gb-active {
+  background: var(--gb-danger);
+  border-color: var(--gb-danger);
+}
+.gb-touchbtn-ads {
+  right: calc(130px + env(safe-area-inset-right));
+  bottom: calc(100px + env(safe-area-inset-bottom));
+}
+.gb-touchbtn-jump {
+  right: calc(6px + env(safe-area-inset-right));
+  bottom: calc(146px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  font-size: 11px;
+}
+.gb-touchbtn-reload {
+  right: calc(140px + env(safe-area-inset-right));
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  width: 56px;
+  height: 56px;
+  font-size: 11px;
+}
+.gb-touchbtn-interact {
+  right: calc(96px + env(safe-area-inset-right));
+  bottom: calc(184px + env(safe-area-inset-bottom));
+  width: 52px;
+  height: 52px;
+  font-size: 10px;
+}
+.gb-touchbtn-pause {
+  top: calc(14px + env(safe-area-inset-top));
+  right: calc(14px + env(safe-area-inset-right));
+  width: 50px;
+  height: 50px;
+  font-size: 16px;
+}
+.gb-touchbtn-mode {
+  top: calc(14px + env(safe-area-inset-top));
+  right: calc(76px + env(safe-area-inset-right));
+  width: 50px;
+  height: 50px;
+  font-size: 10px;
+}
+
+/* ---------------------------------------------------------------------
+   Misc scrollbar polish (desktop)
+--------------------------------------------------------------------- */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--gb-panel-3) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--gb-panel-3);
+  border-radius: 4px;
+}
