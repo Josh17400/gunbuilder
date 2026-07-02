@@ -825,6 +825,235 @@ body {
 }
 
 /* ---------------------------------------------------------------------
+   Career screen (gb-career-*) — XP header + scrolling mission list.
+   NOTE: same compositing rule as the builder stat drawer — the list
+   scroller (.gb-career-list) is nested inside an overflow:hidden wrapper
+   (.gb-career-scrollwrap) so Chromium doesn't paint a white block where
+   a composited scroller overlaps the WebGL canvas.
+--------------------------------------------------------------------- */
+
+.gb-career {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.gb-career-header {
+  width: min(560px, calc(100vw - 16px));
+  margin: 10px 8px 0;
+  padding: 10px 12px;
+  flex: 0 0 auto;
+}
+.gb-career-header-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gb-career-back {
+  flex: 0 0 40px;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  font-size: 22px;
+  border-radius: 10px;
+}
+.gb-career-title {
+  flex: 1;
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: 0.1em;
+  text-align: left;
+}
+.gb-career-lv-badge {
+  flex: 0 0 auto;
+  background: rgba(255, 179, 71, 0.14);
+  border: 1px solid rgba(255, 179, 71, 0.45);
+  color: var(--gb-accent);
+  font: 700 13px/1 var(--gb-font);
+  padding: 7px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+}
+.gb-career-xp-row {
+  margin-top: 10px;
+}
+.gb-career-xp-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--gb-panel-3);
+  overflow: hidden;
+}
+.gb-career-xp-fill {
+  height: 100%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--gb-accent-dim), var(--gb-accent));
+  transition: width 0.3s ease;
+}
+.gb-career-xp-label {
+  margin-top: 6px;
+  font: 600 12px/1 var(--gb-mono);
+  color: var(--gb-text-dim);
+  text-align: right;
+}
+
+/* Outer wrapper clips; inner list scrolls (see NOTE above). */
+.gb-career-scrollwrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: min(560px, 100vw);
+  overflow: hidden;
+  pointer-events: auto;
+}
+.gb-career-list {
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 8px calc(24px + env(safe-area-inset-bottom));
+}
+
+.gb-career-card {
+  width: 100%;
+  padding: 12px;
+}
+.gb-career-card.gb-locked {
+  opacity: 0.45;
+  cursor: default;
+}
+.gb-career-card.gb-locked:active {
+  transform: none;
+}
+.gb-career-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.gb-career-num {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--gb-panel-3);
+  font: 700 13px/1 var(--gb-mono);
+  color: var(--gb-text-dim);
+}
+.gb-career-card.gb-selected .gb-career-num {
+  background: rgba(255, 179, 71, 0.18);
+  color: var(--gb-accent);
+}
+.gb-career-main {
+  flex: 1;
+  min-width: 0;
+}
+.gb-career-card-title {
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gb-career-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.gb-career-chip {
+  font: 700 10px/1 var(--gb-font);
+  letter-spacing: 0.06em;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--gb-border);
+  color: var(--gb-text-dim);
+}
+.gb-career-chip-course {
+  border-color: rgba(126, 224, 129, 0.4);
+  color: var(--gb-good);
+}
+.gb-career-chip-lanes {
+  border-color: rgba(140, 180, 255, 0.4);
+  color: #9cbcff;
+}
+.gb-career-reward {
+  font: 600 11px/1 var(--gb-mono);
+  color: var(--gb-text-dim);
+}
+.gb-career-right {
+  flex: 0 0 auto;
+  text-align: right;
+}
+.gb-career-stars {
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.28);
+}
+.gb-career-stars-earned {
+  color: var(--gb-accent);
+}
+.gb-career-lock {
+  font-size: 16px;
+}
+
+/* Expanded detail */
+.gb-career-detail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gb-border);
+  cursor: default;
+}
+.gb-career-story {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  font-style: italic;
+  color: var(--gb-text-dim);
+}
+.gb-career-objective {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--gb-text);
+}
+.gb-career-starhint {
+  margin-top: 5px;
+  font: 600 11px/1.4 var(--gb-mono);
+  color: var(--gb-accent);
+}
+.gb-career-forced {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--gb-danger);
+}
+.gb-career-replay {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--gb-good);
+}
+.gb-career-start {
+  width: 100%;
+  margin-top: 12px;
+}
+
+/* Menu: small level pill on the CAREER button */
+.gb-menu-lv {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  font: 700 11px/1 var(--gb-font);
+  letter-spacing: 0.03em;
+}
+
+/* ---------------------------------------------------------------------
    Misc scrollbar polish (desktop)
 --------------------------------------------------------------------- */
 

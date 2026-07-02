@@ -60,6 +60,8 @@ export class HUD {
     this._toastTimer = null;
     this._toastHideTimer = null;
     this._hitmarkerAnim = null;
+    this._levelUpAnim = null;
+    this._levelUpTimer = null;
 
     this.el = {};
     this.root = el("div", "gb-hud", "position:fixed;inset:0;pointer-events:none;z-index:10;display:none;");
@@ -74,6 +76,8 @@ export class HUD {
     this._buildInteractPrompt();
     this._buildPause();
     this._buildFinish();
+    this._buildMissionResult();
+    this._buildLevelUp();
   }
 
   // ---- construction ------------------------------------------------
@@ -223,10 +227,11 @@ export class HUD {
     const newBest = el("div", "gb-finish-newbest", "font-size:16px;font-weight:700;color:#ffb347;display:none;");
     const best = el("div", "gb-finish-best", "font-size:14px;color:#c8c8c8;");
     const penalties = el("div", "gb-finish-penalties", "font-size:13px;color:#ff8a6b;display:none;");
+    const xp = el("div", "gb-finish-xp", "font-size:14px;font-weight:700;color:#ffb347;display:none;");
     const retryBtn = button("Retry");
     const builderBtn = button("Back to Builder");
     const menuBtn = button("Main Menu");
-    overlay.append(time, newBest, best, penalties, retryBtn, builderBtn, menuBtn);
+    overlay.append(time, newBest, best, penalties, xp, retryBtn, builderBtn, menuBtn);
     this.root.appendChild(overlay);
 
     this.el.finishOverlay = overlay;
@@ -234,9 +239,53 @@ export class HUD {
     this.el.finishNewBest = newBest;
     this.el.finishBest = best;
     this.el.finishPenalties = penalties;
+    this.el.finishXp = xp;
     this.el.finishRetryBtn = retryBtn;
     this.el.finishBuilderBtn = builderBtn;
     this.el.finishMenuBtn = menuBtn;
+  }
+
+  _buildMissionResult() {
+    const overlay = el(
+      "div",
+      "gb-pause gb-mission gb-overlay-panel",
+      "position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(8,8,10,0.86);pointer-events:auto;z-index:50;"
+    );
+    const title = el("div", "gb-mission-title", "font-size:34px;font-weight:800;color:#ffb347;letter-spacing:0.08em;text-align:center;");
+    const sub = el("div", "gb-mission-sub", "font-size:15px;color:#c8c8c8;text-align:center;");
+    const stars = el("div", "gb-mission-stars", "font-size:44px;letter-spacing:12px;line-height:1;margin:4px 0 2px;text-indent:12px;");
+    const time = el("div", "gb-mission-time", "font-size:20px;font-weight:700;font-family:'Courier New',monospace;color:#f2f2f2;display:none;");
+    const xp = el("div", "gb-mission-xp", "font-size:16px;font-weight:700;color:#ffb347;display:none;");
+    const retryBtn = button("Retry");
+    const nextBtn = button("Next Mission");
+    const careerBtn = button("Career");
+    overlay.append(title, sub, stars, time, xp, retryBtn, nextBtn, careerBtn);
+    this.root.appendChild(overlay);
+
+    this.el.missionOverlay = overlay;
+    this.el.missionTitle = title;
+    this.el.missionSub = sub;
+    this.el.missionStars = stars;
+    this.el.missionTime = time;
+    this.el.missionXp = xp;
+    this.el.missionRetryBtn = retryBtn;
+    this.el.missionNextBtn = nextBtn;
+    this.el.missionCareerBtn = careerBtn;
+  }
+
+  _buildLevelUp() {
+    // Gold slide-in banner (showLevelUp). Above overlays (z 60), never blocks.
+    const banner = el(
+      "div",
+      "gb-levelup",
+      "position:fixed;top:84px;left:50%;transform:translateX(-50%);padding:12px 28px;border-radius:10px;" +
+      "background:linear-gradient(180deg,#ffd97a,#ff9d2e);color:#241a05;font-weight:800;font-size:18px;" +
+      "letter-spacing:0.05em;text-align:center;box-shadow:0 6px 24px rgba(255,170,40,0.45);" +
+      "display:none;opacity:0;pointer-events:none;z-index:60;white-space:nowrap;max-width:92vw;" +
+      "overflow:hidden;text-overflow:ellipsis;"
+    );
+    this.root.appendChild(banner);
+    this.el.levelUp = banner;
   }
 
   // ---- lifecycle ------------------------------------------------
@@ -431,7 +480,89 @@ export class HUD {
     this.el.pauseOverlay.style.display = "none";
   }
 
-  showFinish({ time, best, isNewBest, penalties = 0, onRetry, onBuilder, onMenu } = {}) {
+  // Non-blocking gold banner: "LEVEL 7 — UNLOCKED: Kriss Vex, Holo Sight".
+  // Slides in, holds, fades — ~2.5 s total. Safe to call over any overlay.
+  showLevelUp(level, partNames) {
+    const banner = this.el.levelUp;
+    if (!banner) return;
+    const names = Array.isArray(partNames) && partNames.length
+      ? ` — UNLOCKED: ${partNames.join(", ")}`
+      : "";
+    banner.textContent = `LEVEL ${level}${names}`;
+    banner.style.display = "";
+
+    if (this._levelUpAnim) this._levelUpAnim.cancel();
+    if (this._levelUpTimer) clearTimeout(this._levelUpTimer);
+    const hide = () => {
+      banner.style.display = "none";
+      banner.style.opacity = "0";
+    };
+    if (typeof banner.animate === "function") {
+      banner.style.opacity = "1";
+      this._levelUpAnim = banner.animate(
+        [
+          { transform: "translateX(-50%) translateY(-36px)", opacity: 0, offset: 0 },
+          { transform: "translateX(-50%) translateY(0)", opacity: 1, offset: 0.14 },
+          { transform: "translateX(-50%) translateY(0)", opacity: 1, offset: 0.85 },
+          { transform: "translateX(-50%) translateY(-12px)", opacity: 0, offset: 1 },
+        ],
+        { duration: 2500, easing: "ease-out" }
+      );
+      this._levelUpAnim.onfinish = hide;
+    } else {
+      banner.style.opacity = "1";
+      this._levelUpTimer = setTimeout(hide, 2500);
+    }
+  }
+
+  // Mission end overlay: MISSION COMPLETE/FAILED, star row, optional time and
+  // "+N XP" lines, Retry / Next Mission (when onNext given) / Career.
+  showMissionResult({
+    success, missionTitle, stars = 0, time = null, xpText = null,
+    onRetry, onNext, onCareer,
+  } = {}) {
+    this.el.missionTitle.textContent = success ? "MISSION COMPLETE" : "MISSION FAILED";
+    this.el.missionTitle.style.color = success ? "#ffb347" : "#ff6a6a";
+    this.el.missionSub.textContent = missionTitle || "";
+
+    const starsEl = this.el.missionStars;
+    starsEl.textContent = "";
+    for (let i = 0; i < 3; i++) {
+      const s = el("span", null, `color:${i < stars ? "#ffd447" : "#4a4a52"};`);
+      s.textContent = i < stars ? "★" : "☆";
+      starsEl.appendChild(s);
+    }
+
+    if (time != null) {
+      this.el.missionTime.style.display = "";
+      this.el.missionTime.textContent = formatTime(time);
+    } else {
+      this.el.missionTime.style.display = "none";
+    }
+    if (xpText) {
+      this.el.missionXp.style.display = "";
+      this.el.missionXp.textContent = xpText;
+    } else {
+      this.el.missionXp.style.display = "none";
+    }
+
+    this.el.missionRetryBtn.onclick = onRetry || null;
+    this.el.missionCareerBtn.onclick = onCareer || null;
+    if (onNext) {
+      this.el.missionNextBtn.style.display = "";
+      this.el.missionNextBtn.onclick = onNext;
+    } else {
+      this.el.missionNextBtn.style.display = "none";
+      this.el.missionNextBtn.onclick = null;
+    }
+    this.el.missionOverlay.style.display = "flex";
+  }
+
+  hideMissionResult() {
+    this.el.missionOverlay.style.display = "none";
+  }
+
+  showFinish({ time, best, isNewBest, penalties = 0, xp = null, onRetry, onBuilder, onMenu } = {}) {
     this.el.finishTime.textContent = formatTime(time);
     this.el.finishNewBest.style.display = isNewBest ? "" : "none";
     this.el.finishBest.textContent = best != null ? `Best: ${formatTime(best)}` : "";
@@ -440,6 +571,12 @@ export class HUD {
       this.el.finishPenalties.textContent = `Penalties: +${penalties.toFixed(1)}s`;
     } else {
       this.el.finishPenalties.style.display = "none";
+    }
+    if (xp != null) {
+      this.el.finishXp.style.display = "";
+      this.el.finishXp.textContent = `+${xp} XP`;
+    } else {
+      this.el.finishXp.style.display = "none";
     }
     this.el.finishRetryBtn.onclick = onRetry || null;
     this.el.finishBuilderBtn.onclick = onBuilder || null;
@@ -455,6 +592,8 @@ export class HUD {
     if (this._toastTimer) clearTimeout(this._toastTimer);
     if (this._toastHideTimer) clearTimeout(this._toastHideTimer);
     if (this._hitmarkerAnim) this._hitmarkerAnim.cancel();
+    if (this._levelUpAnim) this._levelUpAnim.cancel();
+    if (this._levelUpTimer) clearTimeout(this._levelUpTimer);
     this.unmount();
     this.el = {};
   }

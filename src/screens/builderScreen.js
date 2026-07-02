@@ -9,6 +9,7 @@ import { buildGunMesh, disposeGun } from "../gun/gunFactory.js";
 import { SLOTS, PARTS, PARTS_BY_SLOT, DEFAULT_BUILD } from "../data/parts.js";
 import { STAT_DEFS, composeStats, diffStats } from "../data/stats.js";
 import { isCompatible, sanitizeBuild } from "../data/compat.js";
+import { loadProgression, loadProgress } from "./missionShared.js";
 
 const SLOT_LABELS = {
   receiver: "Receiver", barrel: "Barrel", muzzle: "Muzzle", optic: "Optic",
@@ -31,6 +32,19 @@ export class BuilderScreen extends Screen {
 
     this.build = copyBuild((params && params.build) || ctx.save.loadLastBuild() || DEFAULT_BUILD);
     this.slot = "receiver";
+
+    // Progression gating (Addendum v3). Null progression = gating disabled
+    // (module hasn't landed / failed to load) — everything renders unlocked.
+    this.progression = await loadProgression();
+    this.level = 1;
+    if (this.progression) {
+      try {
+        this.level = this.progression.getLevel(loadProgress(ctx.save).xp).level;
+      } catch (err) {
+        console.error("BuilderScreen: getLevel failed", err);
+        this.progression = null;
+      }
+    }
     this.previewValue = undefined;   // part id | null (None) | undefined (no preview)
     this.statOpen = false;
     this._timers = [];
@@ -320,6 +334,26 @@ export class BuilderScreen extends Screen {
       const equipped = equippedValue === entry.value;
       if (equipped) card.classList.add("gb-selected");
 
+      // Progression lock takes precedence over compat: dim + lock line, tap
+      // explains, never previews/equips. An already-equipped locked part (e.g.
+      // from an old build) stays equipped but its card still reads locked.
+      const lockLv = this._lockLevel(entry.value);
+      if (lockLv) {
+        card.classList.add("gb-disabled", "gb-locked");
+        const lockEl = document.createElement("div");
+        lockEl.className = "gb-card-lock";
+        lockEl.textContent = `🔒 Lv ${lockLv}`;
+        Object.assign(lockEl.style, {
+          fontSize: "11px", color: ACCENT, marginTop: "4px", fontWeight: "700",
+        });
+        card.appendChild(lockEl);
+        card.addEventListener("click", () => {
+          this._toast(`Unlocks at level ${lockLv}`);
+        });
+        this.cardStrip.appendChild(card);
+        continue;
+      }
+
       if (!compat.ok) {
         card.classList.add("gb-disabled");
         const reasonEl = document.createElement("div");
@@ -354,6 +388,20 @@ export class BuilderScreen extends Screen {
     // Strip height can change with the slot's card content — keep the
     // drawer anchor (--gb-dock-h) in sync.
     if (this.dock) this._applyLayout();
+  }
+
+  // Returns the level a part unlocks at if it's still locked for the current
+  // player level, else 0. "None" (null) and unknown parts are never locked.
+  _lockLevel(partId) {
+    const prog = this.progression;
+    if (!prog || partId == null) return 0;
+    try {
+      if (prog.isUnlocked(partId, this.level)) return 0;
+      return (prog.UNLOCK_LEVEL && prog.UNLOCK_LEVEL[partId]) || this.level + 1;
+    } catch (err) {
+      console.error("BuilderScreen: isUnlocked failed", err);
+      return 0;
+    }
   }
 
   // ------------------------------------------------------------------ Preview / equip
@@ -641,5 +689,6 @@ export class BuilderScreen extends Screen {
     if (this.scene) disposeScene(this.scene);
     this.scene = null;
     this.camera = null;
+    this.progression = null;
   }
 }

@@ -5,8 +5,10 @@ const KEY_BUILDS = "gunbuilder.v1.builds";
 const KEY_BEST_TIMES = "gunbuilder.v1.bestTimes";
 const KEY_SETTINGS = "gunbuilder.v1.settings";
 const KEY_LAST_BUILD = "gunbuilder.v1.lastBuild";
+const KEY_PROGRESS = "gunbuilder.v1.progress";
 
 const DEFAULT_SETTINGS = { sens: 1, touchSens: 1, volume: 0.8 };
+const DEFAULT_PROGRESS = { xp: 0, missions: {} };
 
 function readJSON(key, fallback) {
   try {
@@ -71,5 +73,17 @@ export const save = {
     const merged = { ...current, ...patch };
     writeJSON(KEY_SETTINGS, merged);
     return merged;
+  },
+
+  loadProgress() {
+    const progress = readJSON(KEY_PROGRESS, DEFAULT_PROGRESS);
+    if (!progress || typeof progress !== "object") return { xp: 0, missions: {} };
+    const xp = typeof progress.xp === "number" && progress.xp >= 0 ? progress.xp : 0;
+    const missions = progress.missions && typeof progress.missions === "object" ? progress.missions : {};
+    return { xp, missions };
+  },
+
+  saveProgress(p) {
+    writeJSON(KEY_PROGRESS, p);
   },
 };

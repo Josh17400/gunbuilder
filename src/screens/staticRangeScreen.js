@@ -12,13 +12,13 @@ import { Effects } from "../game/effects.js";
 import { HUD } from "../game/hud.js";
 import { ViewModel } from "../gun/viewmodel.js";
 import { Weapon } from "../gun/weapon.js";
+import {
+  copyBuild, loadProgression, loadProgress, completeMission,
+  nextMission, goToMission,
+} from "./missionShared.js";
 
 const _mfPos = new THREE.Vector3();
 const _mfDir = new THREE.Vector3();
-
-function copyBuild(b) {
-  return JSON.parse(JSON.stringify(b));
-}
 
 export class StaticRangeScreen extends Screen {
   async enter(ctx, params) {
@@ -31,6 +31,23 @@ export class StaticRangeScreen extends Screen {
     this._promptShown = false;
     this._sprintAmt = 0;
     this._hudMode = null;
+
+    // ---- Mission mode (Addendum v3) ----
+    // params.mission with a lanes-style objective turns the free-shoot range
+    // into a timed objective run. Course-mode missions never route here.
+    this.mission = params && params.mission && params.mission.mode !== "course"
+      ? params.mission : null;
+    this.progression = this.mission ? await loadProgression() : null;
+    if (this.mission && !this.progression) {
+      console.warn("StaticRangeScreen: mission ignored — progression unavailable");
+      this.mission = null;
+    }
+    this.missionState = this.mission ? "active" : null; // "active" | "done"
+    this._missionElapsed = 0;
+    this._missionDamage = 0;
+    this._missionHits = new Set(); // distinct target instances damaged
+    this._hitOwner = null;         // stamped by wrapped onHit, read in onAnyHit
+    this._objRefresh = 0;
 
     // ---- Scene / lighting ----
     this.scene = new THREE.Scene();
@@ -89,13 +106,36 @@ export class StaticRangeScreen extends Screen {
     for (const t of this.world.targets) hittables.push(...t.hittables);
     this.projectiles.setHittables(hittables);
 
+    // Mission tracking: onAnyHit(info, result) doesn't carry the hittable, so
+    // tag each target hittable with its owning target and wrap onHit to stamp
+    // the owner just before ProjectileSystem synchronously fires onAnyHit.
+    // (Targets are recreated with the world each enter — no double-wrap risk.)
+    if (this.mission) {
+      for (const t of this.world.targets) {
+        for (const h of t.hittables) {
+          h.owner = t;
+          const orig = h.onHit.bind(h);
+          h.onHit = (info) => {
+            this._hitOwner = h.owner;
+            return orig(info);
+          };
+        }
+      }
+      this.projectiles.onAnyHit = (info, result) => this._onMissionHit(info, result);
+    }
+
     // ---- HUD initial state ----
     this.hud.setBuildName(this.build.name || "Untitled");
     this.hud.setAmmo(this.weapon.ammoInMag, this.weapon.stats.magSize);
     this.hud.setFireMode(this.weapon.fireMode);
     this._hudMode = this.weapon.fireMode;
-    this.hud.setTimer(null);
-    this.hud.setObjective(null);
+    if (this.mission) {
+      this.hud.setTimer(this.mission.objective.timeLimit || 0);
+      this.hud.setObjective(this._objectiveText());
+    } else {
+      this.hud.setTimer(null);
+      this.hud.setObjective(null);
+    }
     this.hud.setLaneInfo(null);
 
     // ---- Touch-only refill button (touch has no interact key) ----
@@ -119,8 +159,104 @@ export class StaticRangeScreen extends Screen {
     this._ready = true;
   }
 
+  // ------------------------------------------------------------- mission
+
+  _objectiveText() {
+    const obj = this.mission.objective;
+    if (obj.type === "hits") {
+      return `Hit ${obj.count} targets · ${this._missionHits.size}/${obj.count}`;
+    }
+    if (obj.type === "damage") {
+      const dealt = Math.min(Math.round(this._missionDamage), obj.amount);
+      return `Deal ${obj.amount} damage · ${dealt}/${obj.amount}`;
+    }
+    return this.mission.title || "";
+  }
+
+  // Fired by ProjectileSystem for every hit (walls included — those have no
+  // stamped owner). result objects are reused by targets: read, never retain.
+  _onMissionHit(info, result) {
+    const owner = this._hitOwner;
+    this._hitOwner = null;
+    if (this.missionState !== "active") return;
+    const dealt = (result && result.damage) || 0;
+    if (dealt <= 0) return;
+
+    this._missionDamage += dealt;
+    if (owner) this._missionHits.add(owner);
+    this.hud.setObjective(this._objectiveText());
+
+    const obj = this.mission.objective;
+    const done =
+      (obj.type === "hits" && this._missionHits.size >= obj.count) ||
+      (obj.type === "damage" && this._missionDamage >= obj.amount);
+    if (done) this._missionComplete();
+  }
+
+  _missionComplete() {
+    this.missionState = "done";
+    const obj = this.mission.objective;
+    const timeLeft = Math.max(0, (obj.timeLimit || 0) - this._missionElapsed);
+
+    let stars = 1;
+    try {
+      stars = this.progression.starsForResult(this.mission, { completed: true, timeLeft });
+    } catch (err) {
+      console.error("StaticRangeScreen: starsForResult failed", err);
+    }
+    stars = Math.max(1, Math.min(3, stars | 0)); // success is always ≥ 1 star
+
+    const res = completeMission(this.ctx.save, this.progression, this.mission, stars);
+
+    this.hud.setTimer(timeLeft);
+    this.hud.setObjective(null);
+    this.ctx.audio.play("finish");
+    this.ctx.input.setGameplayMode(false);
+    if (res.leveledTo) this.hud.showLevelUp(res.leveledTo, res.unlockedNames);
+
+    const next = nextMission(this.progression, this.mission, res.progress);
+    this.hud.showMissionResult({
+      success: true,
+      missionTitle: this.mission.title,
+      stars,
+      xpText: `+${res.award} XP${res.first ? "" : " (repeat)"}`,
+      onRetry: () => this._missionRetry(),
+      onNext: next ? () => goToMission(this.ctx, next) : null,
+      onCareer: () => this.ctx.manager.goTo("career"),
+    });
+  }
+
+  _missionFail() {
+    this.missionState = "done";
+    this.hud.setTimer(0);
+    this.hud.setObjective(null);
+    this.ctx.audio.play("fall");
+    this.ctx.input.setGameplayMode(false);
+
+    // No XP on failure; Next only if it was already unlocked by a prior run.
+    const next = nextMission(
+      this.progression, this.mission, loadProgress(this.ctx.save)
+    );
+    this.hud.showMissionResult({
+      success: false,
+      missionTitle: this.mission.title,
+      stars: 0,
+      onRetry: () => this._missionRetry(),
+      onNext: next ? () => goToMission(this.ctx, next) : null,
+      onCareer: () => this.ctx.manager.goTo("career"),
+    });
+  }
+
+  _missionRetry() {
+    this.hud.hideMissionResult();
+    this._resetRange();
+    this.ctx.input.setGameplayMode(true);
+  }
+
+  // ------------------------------------------------------------- flow
+
   _pause() {
-    if (this.paused || !this._ready) return;
+    if (this.paused || this.missionState === "done" || !this._ready) return;
     this.paused = true;
     this.ctx.input.setGameplayMode(false);
     this.hud.showPause({
@@ -150,6 +286,17 @@ export class StaticRangeScreen extends Screen {
     this.hud.setAmmo(this.weapon.ammoInMag, this.weapon.stats.magSize);
     this.hud.setLaneInfo(null);
     this._lastHit = null;
+
+    if (this.mission) {
+      this.missionState = "active";
+      this._missionElapsed = 0;
+      this._missionDamage = 0;
+      this._missionHits.clear();
+      this._hitOwner = null;
+      this._objRefresh = 0;
+      this.hud.setTimer(this.mission.objective.timeLimit || 0);
+      this.hud.setObjective(this._objectiveText());
+    }
   }
 
   _refill() {
@@ -163,8 +310,32 @@ export class StaticRangeScreen extends Screen {
     if (!this._ready || !this.scene) return;
     const input = this.ctx.input;
 
-    if (input.state.pausePressed && !this.paused) this._pause();
+    if (input.state.pausePressed && !this.paused && this.missionState !== "done") this._pause();
     if (this.paused) return; // still renders (manager), gameplay frozen
+
+    if (this.missionState === "done") {
+      // Let bullets/effects settle behind the result overlay.
+      this.projectiles.update(dt);
+      this.effects.update(dt);
+      return;
+    }
+
+    // Mission countdown — ticked before gameplay so a 0:00 frame can't also
+    // register hits (fail wins the frame it expires).
+    if (this.missionState === "active") {
+      this._missionElapsed += dt;
+      const left = (this.mission.objective.timeLimit || 0) - this._missionElapsed;
+      this.hud.setTimer(Math.max(0, left));
+      this._objRefresh += dt;
+      if (this._objRefresh >= 0.2) {
+        this._objRefresh = 0;
+        this.hud.setObjective(this._objectiveText());
+      }
+      if (left <= 0) {
+        this._missionFail();
+        return;
+      }
+    }
 
     const stats = this.weapon.stats;
 
@@ -239,12 +410,20 @@ export class StaticRangeScreen extends Screen {
     if (this.hud) { this.hud.unmount(); this.hud.dispose(); this.hud = null; }
     if (this.weapon) { this.weapon.dispose(); this.weapon = null; }
     if (this.viewmodel) { this.viewmodel.dispose(); this.viewmodel = null; }
-    if (this.projectiles) { this.projectiles.dispose(); this.projectiles = null; }
+    if (this.projectiles) {
+      this.projectiles.onAnyHit = null;
+      this.projectiles.dispose();
+      this.projectiles = null;
+    }
     if (this.effects) { this.effects.dispose(); this.effects = null; }
     if (this.controller) { this.controller.dispose(); this.controller = null; }
     if (this.world) { this.world.dispose(); this.world = null; }
     if (this.scene) disposeScene(this.scene);
     this.scene = null;
     this.camera = null;
+    this.mission = null;
+    this.progression = null;
+    this.missionState = null;
+    if (this._missionHits) this._missionHits.clear();
   }
 }

@@ -5,6 +5,7 @@ import { Screen } from "../core/screens.js";
 import { disposeScene, clamp } from "../core/utils.js";
 import { buildGunMesh, disposeGun } from "../gun/gunFactory.js";
 import { DEFAULT_BUILD } from "../data/parts.js";
+import { getLevel } from "../data/progression.js";
 import { VERSION } from "../version.js";
 
 function copyBuild(b) {
@@ -93,11 +94,28 @@ export class MenuScreen extends Screen {
       return b;
     };
 
+    // Recompute level on every enter (XP may have changed mid-session).
+    let level = 1;
+    try {
+      level = getLevel(ctx.save.loadProgress().xp).level;
+    } catch (err) {
+      console.error("MenuScreen: level lookup failed", err);
+    }
+
+    const careerBtn = mkBtn("CAREER", () => {
+      ctx.manager.goTo("career");
+    });
+    careerBtn.classList.add("gb-btn-primary");
+    const lvBadge = document.createElement("span");
+    lvBadge.className = "gb-menu-lv";
+    lvBadge.textContent = `Lv ${level}`;
+    careerBtn.appendChild(lvBadge);
+
     mkBtn("BUILD A GUN", () => {
       const b = ctx.save.loadLastBuild() || DEFAULT_BUILD;
       ctx.manager.goTo("builder", { build: copyBuild(b) });
     });
-    mkBtn("GO TO RANGE", () => {
+    mkBtn("FREE RANGE", () => {
       const b = ctx.save.loadLastBuild() || DEFAULT_BUILD;
       ctx.manager.goTo("rangeSelect", { build: copyBuild(b) });
     });

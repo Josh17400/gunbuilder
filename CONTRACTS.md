@@ -446,6 +446,46 @@ Burst mode: fireModes may include "burst" = 3 shots at fireRate on trigger, then
 holding re-triggers after lockout. `amo_slug` (shell family): sets pellets to 1 via mult/add,
 damage ×3 per-shot net vs pellet spread, falloff ×2, spreadHip ×0.5.
 
+## Addendum v3 — Progression & Career (Phase B)
+
+### src/data/progression.js (new, data-only, no Three)
+```js
+export const MAX_LEVEL = 30
+export function getLevel(xp): { level, into, toNext }   // toNext = xp needed for next level; curve ~ 400*n^1.5 cumulative
+export function isUnlocked(partId, level): boolean       // level 1 base kit: rcv_pistol rcv_ar brl_standard brl_carbine opt_irons mag_standard mag_compact stk_standard grp_standard amo_fmj (null/"None" always allowed)
+export const UNLOCK_LEVEL: { [partId]: number }          // every other part mapped to levels 2..28; receivers as milestones
+export function unlocksAt(level): Part[]                 // parts unlocked exactly at that level
+export const MISSIONS: Mission[]                          // 15, sequential
+// Mission = { id:"m01".., title, story /*2-3 sentence gunsmith proving-grounds arc*/,
+//   mode:"lanes"|"course", forcedBuild?: Build /*mission-supplied loadout*/,
+//   objective: {type:"time"}                    // course: finish; stars vs thresholds
+//           | {type:"hits", count, timeLimit}   // lanes: hit N distinct targets in T seconds
+//           | {type:"damage", amount, timeLimit}// lanes: total damage in T seconds
+//   stars: [s1,s2,s3] /* time mode: seconds (lower better); hits/damage: [1星 done, 2星 spare time%, 3星..] use: [x,y,z] thresholds meaning 1/2/3 stars — for time: [90,60,40]s; for hits/damage: remaining-time thresholds [0, 5, 12]s left */,
+//   rewardXp /*first-completion; repeat = 25%*/ }
+export function starsForResult(mission, result): 0|1|2|3 // result = {timeSeconds} | {completed, timeLeft}
+```
+Mission n+1 unlocked when mission n has ≥1 star (m01 always unlocked).
+
+### save.js additions (owner of the edit: progression data agent)
+`save.loadProgress(): {xp:0, missions:{}}`, `save.saveProgress(p)` — key `gunbuilder.v1.progress`.
+
+### Wiring
+- Screen name "career" (CareerScreen in src/screens/careerScreen.js) registered in main.js. Menu gets a
+  CAREER button (primary) + level badge "Lv N". Career screen: XP bar header, vertical mission list
+  (locked/star states), story text, "START" → `manager.goTo(mission.mode === "course" ? "course" : "staticRange", { build, mission })`
+  where build = mission.forcedBuild ?? (lastBuild sanitized) — forcedBuild bypasses unlock gating.
+- staticRangeScreen/courseScreen accept optional `params.mission`: show objective via hud.setObjective +
+  hud.setTimer countdown (lanes) , track progress (lanes hits: count distinct targets hit via projectiles
+  onAnyHit / target identity; damage: sum), on completion/fail show finish overlay with stars earned,
+  `+XP`, and (if leveled) unlocked part names; save via save.loadProgress/saveProgress; buttons Retry /
+  Next Mission (if next unlocked) / Career.
+- hud additions (owner: the missions-integration agent): `showLevelUp(level, partNames)` banner (big,
+  ~2.5s, gold), `setObjective` reused for mission text.
+- builderScreen gating: locked parts render with 🔒 "Lv N" (gb-locked class), tap → toast "Unlocks at
+  level N". Uses getLevel(save.loadProgress().xp).level. forcedBuild missions unaffected (no builder pass).
+- Free-play course also awards XP on finish: round(600 - 4*seconds, min 50) once per session per best-time improvement… keep simple: award = max(50, round(500 - 5*seconds)) every finish.
+
 ## Update/render loop ownership
 main.js drives `manager.update(dt)`. Gameplay screens gate their internal updates with a `paused`
 flag but still render. All screens null out scene/camera and call disposeScene + their world/system

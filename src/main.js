@@ -11,6 +11,7 @@ import { BuilderScreen } from "./screens/builderScreen.js";
 import { RangeSelectScreen } from "./screens/rangeSelectScreen.js";
 import { StaticRangeScreen } from "./screens/staticRangeScreen.js";
 import { CourseScreen } from "./screens/courseScreen.js";
+import { CareerScreen } from "./screens/careerScreen.js";
 
 const canvas = document.getElementById("game");
 
@@ -31,6 +32,7 @@ manager.register("builder", new BuilderScreen());
 manager.register("rangeSelect", new RangeSelectScreen());
 manager.register("staticRange", new StaticRangeScreen());
 manager.register("course", new CourseScreen());
+manager.register("career", new CareerScreen());
 
 function resize() {
   const w = window.innerWidth;

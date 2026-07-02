@@ -13,16 +13,16 @@ import { Effects } from "../game/effects.js";
 import { HUD } from "../game/hud.js";
 import { ViewModel } from "../gun/viewmodel.js";
 import { Weapon } from "../gun/weapon.js";
+import {
+  copyBuild, loadProgression, completeMission, nextMission,
+  goToMission, freePlayCourseAward, grantXp,
+} from "./missionShared.js";
 
 const _mfPos = new THREE.Vector3();
 const _mfDir = new THREE.Vector3();
 
 const MISSED_PENALTY = 5; // s per missed mandatory target
 const NOSHOOT_PENALTY = 3; // s per shot no-shoot
-
-function copyBuild(b) {
-  return JSON.parse(JSON.stringify(b));
-}
 
 export class CourseScreen extends Screen {
   async enter(ctx, params) {
@@ -38,6 +38,18 @@ export class CourseScreen extends Screen {
     this._hudMode = null;
     this._rHeld = false;
     this._rTime = 0;
+
+    // ---- Mission mode (Addendum v3) ----
+    // Course missions are time-objective runs of the existing flow; the
+    // progression module is loaded even in free play for the finish XP award
+    // (both degrade gracefully while progression.js hasn't landed).
+    this.mission = params && params.mission && params.mission.mode === "course"
+      ? params.mission : null;
+    this.progression = await loadProgression();
+    if (this.mission && !this.progression) {
+      console.warn("CourseScreen: mission ignored — progression unavailable");
+      this.mission = null;
+    }
 
     // ---- Scene / lighting (moodier than the static range) ----
     this.scene = new THREE.Scene();
@@ -101,7 +113,7 @@ export class CourseScreen extends Screen {
     this.hud.setFireMode(this.weapon.fireMode);
     this._hudMode = this.weapon.fireMode;
     this.hud.setTimer(0);
-    this.hud.setObjective("Cross the gate to start");
+    this.hud.setObjective(this._readyObjective());
     this.hud.setLaneInfo(null);
 
     // Hold-R-to-retry (desktop). input only exposes reloadPressed edges,
@@ -122,6 +134,12 @@ export class CourseScreen extends Screen {
   }
 
   // ------------------------------------------------------------- flow
+
+  _readyObjective() {
+    return this.mission
+      ? `${this.mission.title} — cross the gate to start`
+      : "Cross the gate to start";
+  }
 
   _pause() {
     if (this.paused || this.state === "finished" || !this._ready) return;
@@ -154,8 +172,10 @@ export class CourseScreen extends Screen {
     this._rTime = 0;
     this.paused = false;
     this.hud.hidePause();
+    this.hud.hideFinish();   // pre-existing gap: Retry from the finish overlay never hid it
+    this.hud.hideMissionResult();
     this.hud.setTimer(0);
-    this.hud.setObjective("Cross the gate to start");
+    this.hud.setObjective(this._readyObjective());
     this.hud.setAmmo(this.weapon.ammoInMag, this.weapon.stats.magSize);
     this.ctx.input.setGameplayMode(true);
   }
@@ -207,11 +227,48 @@ export class CourseScreen extends Screen {
     this.hud.setObjective(null);
     this.ctx.audio.play("finish");
     this.ctx.input.setGameplayMode(false);
+
+    if (this.mission) {
+      // Mission run: stars from the final (penalized) time, XP + level-up,
+      // progress saved, Retry / Next Mission / Career.
+      let stars = 1;
+      try {
+        stars = this.progression.starsForResult(this.mission, { timeSeconds: final });
+      } catch (err) {
+        console.error("CourseScreen: starsForResult failed", err);
+      }
+      stars = Math.max(1, Math.min(3, stars | 0)); // finishing always earns ≥ 1 star
+
+      const res = completeMission(this.ctx.save, this.progression, this.mission, stars);
+      if (res.leveledTo) this.hud.showLevelUp(res.leveledTo, res.unlockedNames);
+
+      const next = nextMission(this.progression, this.mission, res.progress);
+      this.hud.showMissionResult({
+        success: true,
+        missionTitle: this.mission.title,
+        stars,
+        time: final,
+        xpText: `+${res.award} XP${res.first ? "" : " (repeat)"}`,
+        onRetry: () => this._retry(),
+        onNext: next ? () => goToMission(this.ctx, next) : null,
+        onCareer: () => this.ctx.manager.goTo("career"),
+      });
+      return;
+    }
+
+    // Free play: every finish awards XP per Addendum v3.
+    let xpAward = null;
+    if (this.progression) {
+      xpAward = freePlayCourseAward(final);
+      const res = grantXp(this.ctx.save, this.progression, xpAward);
+      if (res.unlockedNames) this.hud.showLevelUp(res.level, res.unlockedNames);
+    }
     this.hud.showFinish({
       time: final,
       best,
       isNewBest,
       penalties,
+      xp: xpAward,
       onRetry: () => this._retry(),
       onBuilder: () => this.ctx.manager.goTo("builder", { build: copyBuild(this.build) }),
       onMenu: () => this.ctx.manager.goTo("menu"),
@@ -327,5 +384,7 @@ export class CourseScreen extends Screen {
     if (this.scene) disposeScene(this.scene);
     this.scene = null;
     this.camera = null;
+    this.mission = null;
+    this.progression = null;
   }
 }
