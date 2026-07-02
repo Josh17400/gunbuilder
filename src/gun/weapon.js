@@ -26,6 +26,7 @@ export class Weapon {
     this.fireMode = this.stats.fireModes[0];
     this.adsAmount = 0;
     this.reloading = false;
+    this.spinAmount = 0; // 0..1, minigun-style spin-up progress (exposed for audio/HUD)
 
     this._cooldown = 0;
     this._reloadT = 0;
@@ -33,6 +34,8 @@ export class Weapon {
     this._prevFire = false;
     this._prevReload = false;
     this._prevMode = false;
+    this._burstRemaining = 0; // shots left in the current burst (0 = idle)
+    this._burstLockout = 0; // s remaining before a new burst may start
 
     // Reused shot object — no per-shot allocation.
     this._shot = {
@@ -95,21 +98,72 @@ export class Weapon {
       this._startReload();
     }
 
+    // --- Spin-up (stats.spinUp > 0, e.g. minigun 0.8s) ---
+    // Holding the trigger ramps spinAmount 0->1 over spinUp seconds (no shots fired while
+    // ramping); shots are permitted once spinAmount reaches 1. Releasing decays spin at 2x
+    // the ramp rate; re-pressing before it fully decays resumes from the current level, so
+    // feathering the trigger keeps the weapon "hot".
+    const spinUpTime = stats.spinUp || 0;
+    if (spinUpTime > 0) {
+      const spinTarget = wantFire ? 1 : 0;
+      const spinRate = (spinTarget >= this.spinAmount ? 1 : 2) / spinUpTime;
+      const spinStep = spinRate * dt;
+      if (Math.abs(spinTarget - this.spinAmount) <= spinStep) {
+        this.spinAmount = spinTarget;
+      } else {
+        this.spinAmount += Math.sign(spinTarget - this.spinAmount) * spinStep;
+      }
+    } else if (this.spinAmount !== 0) {
+      this.spinAmount = 0;
+    }
+
     // --- Fire ---
     this._cooldown = Math.max(0, this._cooldown - dt);
+    this._burstLockout = Math.max(0, this._burstLockout - dt);
     const fireEdge = wantFire && !this._prevFire;
-    const wantsShot = this.fireMode === "auto" ? wantFire : fireEdge;
+    const spinReady = spinUpTime <= 0 || this.spinAmount >= 1;
     const canFire =
-      !this.reloading && !sprinting && this._sprintLock <= 0 && this._cooldown <= 0;
+      !this.reloading &&
+      !sprinting &&
+      this._sprintLock <= 0 &&
+      this._cooldown <= 0 &&
+      spinReady;
 
-    if (wantsShot && canFire) {
-      if (this.ammoInMag <= 0) {
-        if (fireEdge) {
+    if (this.fireMode === "burst") {
+      // A fresh press (or continued hold once the post-burst lockout clears) starts a new
+      // 3-round burst fired at the normal fireRate interval. Once started, the burst runs
+      // to completion regardless of trigger state (classic CoD: releasing mid-burst still
+      // finishes it) — only reload/empty-mag interrupts it, and cleanly (partial burst ok).
+      if (this._burstRemaining <= 0 && this._burstLockout <= 0 && wantFire) {
+        if (this.ammoInMag > 0) {
+          this._burstRemaining = 3;
+        } else if (fireEdge) {
           audio.play("dry");
           hud.showMessage("RELOAD", 600);
         }
-      } else {
-        this._fire();
+      }
+      if (this._burstRemaining > 0 && canFire) {
+        if (this.ammoInMag <= 0) {
+          // Ran out mid-burst — stop cleanly, no stuck state, no lockout to wait out.
+          this._burstRemaining = 0;
+          this._burstLockout = 0;
+        } else {
+          this._fire();
+          this._burstRemaining--;
+          if (this._burstRemaining <= 0) this._burstLockout = 0.25;
+        }
+      }
+    } else {
+      const wantsShot = this.fireMode === "auto" ? wantFire : fireEdge;
+      if (wantsShot && canFire) {
+        if (this.ammoInMag <= 0) {
+          if (fireEdge) {
+            audio.play("dry");
+            hud.showMessage("RELOAD", 600);
+          }
+        } else {
+          this._fire();
+        }
       }
     }
 
@@ -152,6 +206,9 @@ export class Weapon {
   _startReload() {
     this.reloading = true;
     this._reloadT = this.stats.reloadTime;
+    // Interrupt any in-progress burst cleanly — no resuming a stale burst post-reload.
+    this._burstRemaining = 0;
+    this._burstLockout = 0;
     this.deps.audio.play("reload");
   }
 
@@ -159,12 +216,15 @@ export class Weapon {
     this.reloading = false;
     this._reloadT = 0;
     this.ammoInMag = this.stats.magSize;
+    this._burstRemaining = 0;
+    this._burstLockout = 0;
     this.deps.hud.setAmmo(this.ammoInMag, this.stats.magSize);
   }
 
   reset() {
     this.refill();
     this.adsAmount = 0;
+    this.spinAmount = 0;
     this.fireMode = this.stats.fireModes[0];
     this._cooldown = 0;
     this._sprintLock = 0;

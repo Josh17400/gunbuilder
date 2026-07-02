@@ -432,6 +432,20 @@ All extend Screen. ctx = { renderer, input, audio, save, manager }.
 Add `lastHitInfo` to ProjectileSystem (owner D2): `{ damage, distance, flightTime }` updated on
 every damaging hit, plus `onAnyHit` optional callback.
 
+## Addendum v2 — Arsenal expansion (Phase A)
+
+New part IDs (same shapes/conventions as v1):
+- Receivers: `rcv_ak rcv_vector rcv_p90 rcv_deagle rcv_bolt rcv_burst rcv_minigun`
+- Barrels: `brl_carbon brl_shorty`; Optics: `opt_2x opt_tritium`; Mags: `mag_casket mag_speed`
+- Stocks: `stk_recon`; Grips: `grp_ergo`; Muzzles: `mzl_boost`; Underbarrel: `ub_light`
+- Ammo: `amo_slug amo_frangible`
+New stats (in STAT_DEFS, default 0 / neutral): `spinUp` (s, receiver-only — delay before firing
+while trigger held, minigun 0.8; weapon.js implements), ammo flag `fleshBonus` (frangible ×1.35
+damage vs targets whose hittable sets `fleshy:true` — zombies later; projectiles applies).
+Burst mode: fireModes may include "burst" = 3 shots at fireRate on trigger, then 0.25 s lockout;
+holding re-triggers after lockout. `amo_slug` (shell family): sets pellets to 1 via mult/add,
+damage ×3 per-shot net vs pellet spread, falloff ×2, spreadHip ×0.5.
+
 ## Update/render loop ownership
 main.js drives `manager.update(dt)`. Gameplay screens gate their internal updates with a `paused`
 flag but still render. All screens null out scene/camera and call disposeScene + their world/system

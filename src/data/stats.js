@@ -35,6 +35,7 @@ const NUMERIC_STATS = [
   "falloffEnd",
   "pellets",
   "penetration",
+  "spinUp",
 ];
 
 // [min, max] clamp applied to every composed numeric stat.
@@ -56,6 +57,7 @@ const CLAMPS = {
   falloffEnd: [0, 600],
   pellets: [1, 16],
   penetration: [0, 3],
+  spinUp: [0, 2],
 };
 
 export const STAT_DEFS = {
@@ -135,6 +137,13 @@ export const STAT_DEFS = {
     label: "Suppressed", unit: "", min: 0, max: 1, lowerIsBetter: null,
     format: (v) => (v ? "Suppressed" : "—"), showInPanel: false,
   },
+  // Delay (s) before the weapon reaches full fire rate while the trigger is held (e.g. minigun
+  // spin-up). Only receivers set this via `base.spinUp` — no accessory part contributes
+  // add/mult for it, so it flows through the (base + Σadd) × Π(1+mult) pipeline untouched.
+  spinUp: {
+    label: "Spin-Up", unit: "s", min: 0, max: 2, lowerIsBetter: true,
+    format: (v) => `${v.toFixed(2)}s`, showInPanel: true,
+  },
 };
 
 function fixed2WithDeg(v) {
@@ -201,6 +210,14 @@ export function composeStats(build) {
     result.fireRate = Math.min(result.fireRate, ammo.ammo.rpmCap);
   }
   result.fireRate = clampStat("fireRate", result.fireRate);
+
+  // Ammo pelletsOverride forces the pellet count directly (e.g. slug rounds collapsing a
+  // shotgun's multi-pellet spread into a single effective projectile), bypassing the
+  // add/mult pipeline entirely so it can't be diluted by other pellet-affecting parts.
+  if (ammo && ammo.ammo && typeof ammo.ammo.pelletsOverride === "number") {
+    result.pellets = ammo.ammo.pelletsOverride;
+  }
+  result.pellets = clampStat("pellets", result.pellets);
 
   result.magSize = Math.max(1, Math.round(result.magSize));
   result.pellets = Math.max(1, Math.round(result.pellets));
