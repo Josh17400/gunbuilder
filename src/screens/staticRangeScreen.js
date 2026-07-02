@@ -138,20 +138,10 @@ export class StaticRangeScreen extends Screen {
     }
     this.hud.setLaneInfo(null);
 
-    // ---- Touch-only refill button (touch has no interact key) ----
+    // (Refill on touch goes through the touch cluster's USE button →
+    // interactPressed — DOM buttons in #ui are unreachable under the
+    // fullscreen touch surface.)
     this.refillBtn = null;
-    if (ctx.input.isTouch) {
-      this.refillBtn = document.createElement("button");
-      this.refillBtn.className = "gb-btn";
-      this.refillBtn.textContent = "REFILL AMMO";
-      Object.assign(this.refillBtn.style, {
-        position: "absolute", left: "50%", bottom: "180px",
-        transform: "translateX(-50%)", display: "none",
-        pointerEvents: "auto", zIndex: "10",
-      });
-      this.refillBtn.addEventListener("click", () => this._refill());
-      document.getElementById("ui").appendChild(this.refillBtn);
-    }
 
     // ---- Pause wiring ----
     ctx.input.onPauseRequest = () => this._pause();
@@ -390,12 +380,12 @@ export class StaticRangeScreen extends Screen {
     const near = this.controller.position.distanceTo(crate.position) <= crate.radius;
     if (near !== this._promptShown) {
       this._promptShown = near;
-      if (input.isTouch) {
-        if (this.refillBtn) this.refillBtn.style.display = near ? "" : "none";
-        this.hud.showInteractPrompt(null);
-      } else {
-        this.hud.showInteractPrompt(near ? "E — Refill ammo" : null);
-      }
+      // Touch taps can't reach #ui buttons (the fullscreen touch surface sits
+      // above it) — the touch cluster's USE button drives interactPressed, so
+      // both platforms share the prompt + interactPressed path.
+      this.hud.showInteractPrompt(
+        near ? (input.isTouch ? "USE — Refill ammo" : "E — Refill ammo") : null
+      );
     }
     if (near && input.state.interactPressed) this._refill();
   }

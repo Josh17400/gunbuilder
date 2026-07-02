@@ -280,6 +280,10 @@ export class ProjectileSystem {
       const fall = clamp(invLerp(slot.falloffStart, slot.falloffEnd, hitDist), 0, 1);
       _info.point.copy(hit.point);
       _info.damage = slot.damage * lerp(1, slot.falloffMult, fall);
+      // Addendum v2: frangible rounds hit fleshy hittables (zombies) harder.
+      if (h.fleshy && slot.ammo && slot.ammo.fleshBonus) {
+        _info.damage *= slot.ammo.fleshBonus;
+      }
       _info.distance = hitDist;
       _info.ammo = slot.ammo;
       _info.incendiary = slot.ammo && slot.ammo.incendiary ? slot.ammo.incendiary : null;

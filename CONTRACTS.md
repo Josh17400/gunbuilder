@@ -486,6 +486,50 @@ Mission n+1 unlocked when mission n has ≥1 star (m01 always unlocked).
   level N". Uses getLevel(save.loadProgress().xp).level. forcedBuild missions unaffected (no builder pass).
 - Free-play course also awards XP on finish: round(600 - 4*seconds, min 50) once per session per best-time improvement… keep simple: award = max(50, round(500 - 5*seconds)) every finish.
 
+## Addendum v4 — Zombies mode (Phase C)
+
+### src/game/zombies.js (new)
+```js
+export class ZombieSystem {
+  constructor(scene, { audio, effects, getPlayerPos /*fills out V3*/, onPlayerDamage(dmg), onZombieDown({headshot, points}) , onPointsHit() /*+10 per damaging hit, screen adds*/ })
+  startWave(n)              // spawns round(5 * 1.18^n + n) zombies staggered from the world's 4 gate positions
+  setGates(positions: V3[]) // from zombiesWorld
+  setObstacles(colliders)   // Box3[] for simple steer-around
+  hittables                 // array of Hittable (fleshy: true; head entries crit; penetrationCost 0.4)
+  update(dt)
+  aliveCount; clear(); dispose()
+}
+```
+Zombie: pooled (cap 24 concurrently; wave overflow queues), low-poly humanoid ≤10 prims (mottled
+green/gray skin tones + torn-clothes color block variants), limb-swing walk anim, hp = 55 + wave*14,
+speed mix (walkers 1.7–2.2 m/s, +runners 3.2–3.8 appearing wave 3+), pursuit = seek player with
+tangent steer around obstacles, attack: within 1.3 m → 0.45 s windup swipe → onPlayerDamage(25),
+1.0 s cooldown. Death: crumple+sink 1.2 s then despawn. Headshot = head hittable entry.
+Points (screen computes from ZombieSystem callbacks): +10 damaging hit, +60 kill, +100 headshot kill.
+
+### projectiles.js (small edit, owner: C1): apply `info.damage *= ammo.fleshBonus` when hittable has
+`fleshy: true` and shot ammo has `fleshBonus` (Addendum v2).
+
+### src/world/zombiesWorld.js (new)
+`createZombiesWorld(): { group, colliders, wallHittables, gates: V3[4], obstacles: Box3[], spawn, ammoCrate: {position, radius, cost: 750}, mysteryBox: {position, radius, cost: 950}, dispose }`
+Arena ~34×34 m: courtyard with crates/low walls (cover, obstacles), 4 gate arches (one per side,
+zombies walk in), glowing mystery box crate (accent emissive), ammo crate station, perimeter walls
+3 m. Moody palette (dusk). Merged geometry <25 draw calls.
+
+### src/screens/zombiesScreen.js (new, screen name "zombies")
+Same gameplay wiring as staticRange (controller/viewmodel/weapon/projectiles/effects/hud) plus:
+player hp 100, regen 12/s after 4 s undamaged; hud.setHealthVignette(alpha 0..1) red edge overlay;
+waves: intermission 7 s with "WAVE N" banner (hud.showMessage big variant ok), start next when
+aliveCount==0 && queue empty; points HUD (hud.setPoints), wave HUD (hud.setWave); buy prompts at
+stations (interact / touch button, reuse the staticRange REFILL pattern): ammo 750 pts → weapon.refill,
+mystery box 950 pts → random legal build (random receiver + random compatible parts via
+isCompatible/sanitizeBuild; swap viewmodel+weapon live, show build name toast); death → slow-mo 0.3×
+for 1.2 s then game-over overlay {wave, points, best wave (save under gunbuilder.v1.bestTimes or new
+key gunbuilder.v1.zombies {bestWave, bestPoints}), XP award = round(points/10) via missionShared
+grantXp, Retry / Menu}. Zombies keep NO pause-blocking quirks: pause works as elsewhere.
+hud additions (owner C2): setPoints(n), setWave(n), setHealthVignette(a), showGameOver({wave, points, best, xp, onRetry, onMenu}).
+Menu gets a ZOMBIES button (menuScreen + main.js register, owner C2). Free-play only (no missions).
+
 ## Update/render loop ownership
 main.js drives `manager.update(dt)`. Gameplay screens gate their internal updates with a `paused`
 flag but still render. All screens null out scene/camera and call disposeScene + their world/system

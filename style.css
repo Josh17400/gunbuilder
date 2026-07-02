@@ -1069,3 +1069,32 @@ body {
   background: var(--gb-panel-3);
   border-radius: 4px;
 }
+
+/* ---------------------------------------------------------------------
+   Zombies mode (Addendum v4)
+--------------------------------------------------------------------- */
+
+/* Big center "WAVE N" banner shown during intermissions (screen-owned). */
+.gb-zombies-wavebanner {
+  position: fixed;
+  top: 22%; /* above the HUD toast (top:30%) so intermission buys don't overlap */
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.92);
+  font-size: clamp(42px, 9vw, 76px);
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-indent: 0.18em; /* optically recenter the tracked-out text */
+  color: #ff5a48;
+  text-shadow: 0 2px 28px rgba(255, 60, 40, 0.55), 0 1px 3px rgba(0, 0, 0, 0.8);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 40;
+  opacity: 0;
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
+.gb-zombies-wavebanner.gb-show {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}

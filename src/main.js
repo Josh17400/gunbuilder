@@ -12,6 +12,7 @@ import { RangeSelectScreen } from "./screens/rangeSelectScreen.js";
 import { StaticRangeScreen } from "./screens/staticRangeScreen.js";
 import { CourseScreen } from "./screens/courseScreen.js";
 import { CareerScreen } from "./screens/careerScreen.js";
+import { ZombiesScreen } from "./screens/zombiesScreen.js";
 
 const canvas = document.getElementById("game");
 
@@ -33,6 +34,7 @@ manager.register("rangeSelect", new RangeSelectScreen());
 manager.register("staticRange", new StaticRangeScreen());
 manager.register("course", new CourseScreen());
 manager.register("career", new CareerScreen());
+manager.register("zombies", new ZombiesScreen());
 
 function resize() {
   const w = window.innerWidth;

@@ -119,6 +119,10 @@ export class MenuScreen extends Screen {
       const b = ctx.save.loadLastBuild() || DEFAULT_BUILD;
       ctx.manager.goTo("rangeSelect", { build: copyBuild(b) });
     });
+    mkBtn("ZOMBIES", () => {
+      const b = ctx.save.loadLastBuild() || DEFAULT_BUILD;
+      ctx.manager.goTo("zombies", { build: copyBuild(b) });
+    });
     this.root.appendChild(btnCol);
 
     const footer = document.createElement("div");

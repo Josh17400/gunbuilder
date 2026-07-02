@@ -36,7 +36,7 @@ function ensureInjectedStyles() {
   style.textContent = `
     .gb-ammo-low { animation: gb-ammo-flash 0.5s ease-in-out infinite; }
     @keyframes gb-ammo-flash { 0%, 100% { color: #ff4b4b; } 50% { color: #ffb0b0; } }
-    .gb-toast { transition: opacity 200ms ease; }
+    .gb-hud-toast { transition: opacity 200ms ease; }
     .gb-overlay-panel { transition: opacity 150ms ease; }
   `;
   document.head.appendChild(style);
@@ -62,6 +62,9 @@ export class HUD {
     this._hitmarkerAnim = null;
     this._levelUpAnim = null;
     this._levelUpTimer = null;
+    this._lastPoints = null;
+    this._lastWave = null;
+    this._vignetteAlpha = null;
 
     this.el = {};
     this.root = el("div", "gb-hud", "position:fixed;inset:0;pointer-events:none;z-index:10;display:none;");
@@ -78,6 +81,7 @@ export class HUD {
     this._buildFinish();
     this._buildMissionResult();
     this._buildLevelUp();
+    this._buildZombies();
   }
 
   // ---- construction ------------------------------------------------
@@ -175,10 +179,13 @@ export class HUD {
     this.el.laneInfo = laneInfo;
   }
 
+  // NOTE: deliberately NOT class "gb-toast" — style.css's .gb-toast (builder/
+  // menu toasts) pins `bottom:` which, combined with this element's inline
+  // `top`, stretched it into a giant dark column over the whole HUD.
   _buildToast() {
     const toast = el(
       "div",
-      "gb-toast",
+      "gb-hud-toast",
       "position:fixed;top:30%;left:50%;transform:translate(-50%,-50%);font-size:16px;color:#f2f2f2;background:rgba(0,0,0,0.55);padding:8px 16px;border-radius:6px;display:none;opacity:0;pointer-events:none;z-index:30;text-align:center;"
     );
     this.root.appendChild(toast);
@@ -288,6 +295,69 @@ export class HUD {
     this.el.levelUp = banner;
   }
 
+  // Zombies-mode widgets (Addendum v4): points (top-left), wave (top-center —
+  // zombies never shows the timer, so the slot is free), fullscreen red
+  // health vignette, and the game-over overlay. All hidden until first set.
+  _buildZombies() {
+    const vignette = el(
+      "div",
+      "gb-health-vignette",
+      "position:fixed;inset:0;pointer-events:none;z-index:1;opacity:0;" +
+      "background:radial-gradient(ellipse at center, rgba(150,0,20,0) 42%, rgba(150,0,20,0.65) 78%, rgba(120,0,16,1) 100%);"
+    );
+    this.root.appendChild(vignette);
+    this.el.healthVignette = vignette;
+
+    const points = el(
+      "div",
+      "gb-points",
+      "position:fixed;left:20px;top:14px;display:none;pointer-events:none;z-index:20;line-height:1;"
+    );
+    const pointsValue = el("div", "gb-points-value", "font-size:30px;font-weight:800;color:#ffb347;font-family:'Courier New',monospace;");
+    const pointsLabel = el("div", "gb-points-label", "font-size:11px;color:#9a9a9a;letter-spacing:0.14em;margin-top:3px;");
+    pointsLabel.textContent = "POINTS";
+    points.append(pointsValue, pointsLabel);
+    this.root.appendChild(points);
+    this.el.points = points;
+    this.el.pointsValue = pointsValue;
+
+    const wave = el(
+      "div",
+      "gb-wave",
+      "position:fixed;top:16px;left:50%;transform:translateX(-50%);font-size:20px;font-weight:800;" +
+      "color:#ff6a5a;letter-spacing:0.16em;display:none;pointer-events:none;z-index:20;text-align:center;white-space:nowrap;"
+    );
+    this.root.appendChild(wave);
+    this.el.wave = wave;
+
+    const overlay = el(
+      "div",
+      "gb-pause gb-gameover gb-overlay-panel",
+      "position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(14,4,6,0.88);pointer-events:auto;z-index:50;"
+    );
+    const title = el("div", "gb-gameover-title", "font-size:40px;font-weight:900;color:#ff5a48;letter-spacing:0.12em;text-align:center;");
+    title.textContent = "GAME OVER";
+    const waveLine = el("div", "gb-gameover-wave", "font-size:24px;font-weight:800;color:#f2f2f2;");
+    const pointsLine = el("div", "gb-gameover-points", "font-size:16px;color:#c8c8c8;");
+    const newBest = el("div", "gb-gameover-newbest", "font-size:16px;font-weight:700;color:#ffb347;display:none;");
+    newBest.textContent = "NEW BEST WAVE!";
+    const bestLine = el("div", "gb-gameover-best", "font-size:14px;color:#c8c8c8;");
+    const xpLine = el("div", "gb-gameover-xp", "font-size:15px;font-weight:700;color:#ffb347;display:none;");
+    const retryBtn = button("Retry");
+    const menuBtn = button("Main Menu");
+    overlay.append(title, waveLine, pointsLine, newBest, bestLine, xpLine, retryBtn, menuBtn);
+    this.root.appendChild(overlay);
+
+    this.el.gameOverOverlay = overlay;
+    this.el.gameOverWave = waveLine;
+    this.el.gameOverPoints = pointsLine;
+    this.el.gameOverNewBest = newBest;
+    this.el.gameOverBest = bestLine;
+    this.el.gameOverXp = xpLine;
+    this.el.gameOverRetryBtn = retryBtn;
+    this.el.gameOverMenuBtn = menuBtn;
+  }
+
   // ---- lifecycle ------------------------------------------------
 
   mount(isTouch = false) {
@@ -297,6 +367,8 @@ export class HUD {
     }
     this.root.style.display = "";
     this.root.classList.toggle("gb-hud-touch", this._isTouch);
+    // Touch: lift the interact prompt above the ADS/FIRE button cluster.
+    this.el.interact.style.bottom = this._isTouch ? "250px" : "90px";
   }
 
   unmount() {
@@ -586,6 +658,63 @@ export class HUD {
 
   hideFinish() {
     this.el.finishOverlay.style.display = "none";
+  }
+
+  // ---- Zombies mode (Addendum v4) ----------------------------------
+
+  setPoints(n) {
+    if (n == null) {
+      if (this.el.points.style.display !== "none") this.el.points.style.display = "none";
+      this._lastPoints = null;
+      return;
+    }
+    if (this.el.points.style.display === "none") this.el.points.style.display = "";
+    if (n !== this._lastPoints) {
+      this._lastPoints = n;
+      this.el.pointsValue.textContent = String(n);
+    }
+  }
+
+  setWave(n) {
+    if (n == null) {
+      if (this.el.wave.style.display !== "none") this.el.wave.style.display = "none";
+      this._lastWave = null;
+      return;
+    }
+    if (this.el.wave.style.display === "none") this.el.wave.style.display = "";
+    if (n !== this._lastWave) {
+      this._lastWave = n;
+      this.el.wave.textContent = `WAVE ${n}`;
+    }
+  }
+
+  // alpha 0..1 red edge vignette. Skips sub-0.02 changes (per-frame regen
+  // ticks) except an exact 0, which always clears fully.
+  setHealthVignette(a) {
+    const v = clamp(a || 0, 0, 1);
+    if (this._vignetteAlpha != null && v !== 0 && Math.abs(v - this._vignetteAlpha) < 0.02) return;
+    this._vignetteAlpha = v;
+    this.el.healthVignette.style.opacity = v.toFixed(3);
+  }
+
+  showGameOver({ wave, points, best = null, xp = null, isNewBest = false, onRetry, onMenu } = {}) {
+    this.el.gameOverWave.textContent = `Wave ${wave}`;
+    this.el.gameOverPoints.textContent = `Points: ${points}`;
+    this.el.gameOverNewBest.style.display = isNewBest ? "" : "none";
+    this.el.gameOverBest.textContent = best != null ? `Best wave: ${best}` : "";
+    if (xp != null) {
+      this.el.gameOverXp.style.display = "";
+      this.el.gameOverXp.textContent = `+${xp} XP`;
+    } else {
+      this.el.gameOverXp.style.display = "none";
+    }
+    this.el.gameOverRetryBtn.onclick = onRetry || null;
+    this.el.gameOverMenuBtn.onclick = onMenu || null;
+    this.el.gameOverOverlay.style.display = "flex";
+  }
+
+  hideGameOver() {
+    this.el.gameOverOverlay.style.display = "none";
   }
 
   dispose() {
