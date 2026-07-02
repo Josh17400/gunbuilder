@@ -61,6 +61,24 @@ manager.goTo("menu").catch((err) => {
 // Debug handle (harmless in production, invaluable when poking at the live game)
 window.__gb = { manager, input, renderer, audio };
 
+// Version-skew guard: GitHub Pages caches files for ~10 min, so right after a
+// deploy the browser can hold a mix of old and new files (this broke the
+// builder UI once). If index.html's stamp disagrees with our VERSION, clear
+// HTTP caches and reload — once per session to avoid a loop.
+import("./version.js").then(({ VERSION }) => {
+  const stamp = window.__buildStamp;
+  if (!stamp || stamp === VERSION) return;
+  console.warn(`version skew: html=${stamp} js=${VERSION}`);
+  if (sessionStorage.getItem("gb-skew-reload")) return; // already tried
+  try { sessionStorage.setItem("gb-skew-reload", "1"); } catch (_) {}
+  const reload = () => location.reload();
+  if (window.caches?.keys) {
+    caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).then(reload, reload);
+  } else {
+    reload();
+  }
+});
+
 const clock = new THREE.Clock();
 
 function tick() {

@@ -7,6 +7,10 @@
   <link rel="stylesheet" href="./style.css" />
   <script>
     document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+    // Build stamp — MUST match src/version.js. GitHub Pages caches files for
+    // 10 min, so a deploy can briefly serve mixed old/new files; main.js
+    // compares this against its imported VERSION and self-heals (see main.js).
+    window.__buildStamp = "0.1.2";
   </script>
   <script type="importmap">
   {

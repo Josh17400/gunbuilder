@@ -414,34 +414,47 @@ const BUILDERS = {
   // ========================= OPTICS =========================
   // Origin sits on the receiver's optic rail. "eye" socket = sighting axis.
   opt_irons() {
+    // Thin posts only — no rear slab. Sight line (eye y=0.027) grazes the tips
+    // of the rear ears and front post, so the alignment reads at screen center
+    // with nothing solid crossing the view axis.
     const root = fuse([
       makeBox(0.024, 0.006, 0.02, 0, 0.003, 0.01, BLACK), // rear base
-      makeBox(0.022, 0.018, 0.012, 0, 0.014, 0.01, MID), // rear notch block
+      makeBox(0.004, 0.021, 0.008, -0.008, 0.0165, 0.01, MID), // rear notch ear L
+      makeBox(0.004, 0.021, 0.008, 0.008, 0.0165, 0.01, MID), // rear notch ear R
       makeBox(0.02, 0.006, 0.016, 0, 0.003, -0.09, BLACK), // front base
-      makeBox(0.006, 0.024, 0.006, 0, 0.015, -0.09, MID), // front post
+      makeBox(0.004, 0.021, 0.004, 0, 0.0165, -0.09, MID), // front post
     ]);
-    return { object: root, sockets: addSockets(root, { eye: [0, 0.02, 0.03] }) };
+    return { object: root, sockets: addSockets(root, { eye: [0, 0.027, 0.03] }) };
   },
 
   opt_reddot() {
+    // Low emitter housing you look OVER: sight line (eye y=0.032) clears the
+    // housing top (y=0.022); the dot floats in an open thin-frame window.
     const root = fuse([
       makeBox(0.03, 0.008, 0.05, 0, 0.004, 0, BLACK), // base plate
-      makeBox(0.026, 0.03, 0.036, 0, 0.024, 0, GUNMETAL), // housing
-      makeBox(0.02, 0.022, 0.006, 0, 0.026, -0.02, BLACK), // lens frame
+      makeBox(0.026, 0.014, 0.036, 0, 0.015, 0.005, GUNMETAL), // low housing
+      makeBox(0.004, 0.024, 0.006, -0.014, 0.032, -0.015, BLACK), // window post L
+      makeBox(0.004, 0.024, 0.006, 0.014, 0.032, -0.015, BLACK), // window post R
+      makeBox(0.032, 0.004, 0.006, 0, 0.046, -0.015, BLACK), // window top bar
+      makeBox(0.003, 0.012, 0.003, 0, 0.024, 0.008, BLACK), // dot stalk
     ]);
-    root.add(accent(0.007, 0xff3040, 0, 0.03, 0.017)); // glowing dot
-    return { object: root, sockets: addSockets(root, { eye: [0, 0.03, 0.04] }) };
+    root.add(accent(0.006, 0xff3040, 0, 0.032, 0.008)); // glowing dot on eye axis
+    return { object: root, sockets: addSockets(root, { eye: [0, 0.032, 0.04] }) };
   },
 
   opt_holo() {
+    // Genuinely open rectangular window — thin bars (5mm), nothing in the
+    // middle; emissive-green reticle dot on a thin stalk at the eye axis
+    // (window center), so the dot floats at screen center during ADS.
     const root = fuse([
       makeBox(0.036, 0.008, 0.055, 0, 0.004, 0, BLACK), // base plate
-      makeBox(0.044, 0.006, 0.012, 0, 0.014, 0, GUNMETAL), // hoop bottom
-      makeBox(0.044, 0.006, 0.012, 0, 0.05, 0, GUNMETAL), // hoop top
-      makeBox(0.006, 0.042, 0.012, -0.019, 0.032, 0, GUNMETAL), // hoop left
-      makeBox(0.006, 0.042, 0.012, 0.019, 0.032, 0, GUNMETAL), // hoop right
+      makeBox(0.056, 0.005, 0.01, 0, 0.0105, 0, GUNMETAL), // hoop bottom
+      makeBox(0.056, 0.005, 0.01, 0, 0.0535, 0, GUNMETAL), // hoop top
+      makeBox(0.005, 0.048, 0.01, -0.0255, 0.032, 0, GUNMETAL), // hoop left
+      makeBox(0.005, 0.048, 0.01, 0.0255, 0.032, 0, GUNMETAL), // hoop right
+      makeBox(0.003, 0.016, 0.003, 0, 0.021, 0, BLACK), // reticle stalk
     ]);
-    root.add(accent(0.006, 0xffb347, 0, 0.032, 0)); // holo reticle
+    root.add(accent(0.006, 0x39ff6a, 0, 0.032, 0)); // emissive-green holo dot
     return { object: root, sockets: addSockets(root, { eye: [0, 0.032, 0.04] }) };
   },
 

@@ -4,6 +4,7 @@
 
 import * as THREE from "three";
 import { buildGunMesh, disposeGun } from "./gunFactory.js";
+import { composeStats } from "../data/stats.js";
 import { clamp, lerp, damp } from "../core/utils.js";
 
 const HIP_POS = new THREE.Vector3(0.17, -0.15, -0.35);
@@ -18,6 +19,13 @@ const KICK_K = 140;
 const KICK_C = 16;
 const KICK_BACK = 0.02; // m per unit intensity
 const KICK_PITCH = 2 * (Math.PI / 180); // rad per unit intensity
+
+// Magnified scopes (opt_4x/opt_8x) hand the sight picture to the HUD's DOM
+// vignette (shown at adsAmount>0.8 && adsZoom<=0.45 — see hud.js). Once the
+// vignette covers the screen the opaque tube mesh would only block the world,
+// so the whole gun is hidden at deep ADS and restored on the way back down.
+const SCOPE_HIDE_ZOOM = 0.45;
+const SCOPE_HIDE_ADS = 0.85;
 
 export class ViewModel {
   constructor(camera, build) {
@@ -37,6 +45,9 @@ export class ViewModel {
     );
 
     camera.add(this.gun);
+
+    // Composed optic zoom decides whether deep ADS hides the gun (scopes).
+    this._opticZoom = composeStats(build).adsZoom;
 
     this.adsAmount = 0;
     this._sprintTarget = 0;
@@ -78,6 +89,9 @@ export class ViewModel {
 
     const ads = this.adsAmount;
     const spr = this._sprint;
+
+    // Scope handoff: gun invisible only while fully scoped in (vignette up).
+    this.gun.visible = !(this._opticZoom <= SCOPE_HIDE_ZOOM && ads >= SCOPE_HIDE_ADS);
 
     // Position: hip -> ADS, then -> sprint, plus sway and kick.
     this._pos.copy(HIP_POS).lerp(this._adsPos, ads).lerp(SPRINT_POS, spr);
