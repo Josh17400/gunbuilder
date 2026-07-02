@@ -6,6 +6,7 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { Screen } from "../core/screens.js";
 import { disposeScene, clamp, invLerp } from "../core/utils.js";
 import { buildGunMesh, disposeGun } from "../gun/gunFactory.js";
+import { makeBlobShadow } from "../world/skybits.js";
 import { SLOTS, PARTS, PARTS_BY_SLOT, DEFAULT_BUILD } from "../data/parts.js";
 import { STAT_DEFS, composeStats, diffStats } from "../data/stats.js";
 import { isCompatible, sanitizeBuild } from "../data/compat.js";
@@ -69,13 +70,22 @@ export class BuilderScreen extends Screen {
     floor.position.y = -0.01;
     this.scene.add(floor);
 
-    this.scene.add(new THREE.HemisphereLight(0xbfd6e8, 0x3a3f46, 0.8));
-    const key = new THREE.DirectionalLight(0xfff2dd, 0.9);
+    // Studio rig (tuned for ACES, see main.js): warm key, cool fill, and a
+    // subtle rim so dark receivers separate from the dark backdrop.
+    this.scene.add(new THREE.HemisphereLight(0xbfd6e8, 0x3a3f46, 1.15));
+    const key = new THREE.DirectionalLight(0xfff2dd, 1.4);
     key.position.set(2, 3, 1.5);
     this.scene.add(key);
-    const fill = new THREE.DirectionalLight(0x8899bb, 0.4);
+    const fill = new THREE.DirectionalLight(0x8899bb, 0.65);
     fill.position.set(-2, 2, -2);
     this.scene.add(fill);
+    const rim = new THREE.DirectionalLight(0x9db8e0, 0.8);
+    rim.position.set(-1.5, 2.5, -3);
+    this.scene.add(rim);
+
+    // Soft blob shadow under the gun (unit radius; scaled in _autoFrame).
+    this._blob = makeBlobShadow(1);
+    this.scene.add(this._blob);
 
     this.camera = new THREE.PerspectiveCamera(
       45, window.innerWidth / Math.max(1, window.innerHeight), 0.05, 60
@@ -247,6 +257,12 @@ export class BuilderScreen extends Screen {
     const fov = (this.camera.fov * Math.PI) / 180;
     let dist = (sphere.radius * 1.35) / Math.tan(fov / 2);
     dist = clamp(dist, 0.55, 2.8);
+
+    // Keep the blob shadow under the current build's footprint.
+    if (this._blob) {
+      this._blob.position.set(sphere.center.x, 0.01, sphere.center.z);
+      this._blob.scale.setScalar(clamp(sphere.radius * 1.15, 0.35, 0.95));
+    }
 
     this.controls.target.copy(sphere.center);
     // Mobile: aim slightly below the gun so it renders in the upper half of
@@ -686,6 +702,7 @@ export class BuilderScreen extends Screen {
     this.loadOverlay = null;
     if (this.gunGroup) { disposeGun(this.gunGroup); this.gunGroup = null; }
     this.pivot = null;
+    this._blob = null; // disposed with the scene below
     if (this.scene) disposeScene(this.scene);
     this.scene = null;
     this.camera = null;

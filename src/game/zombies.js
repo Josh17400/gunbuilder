@@ -62,7 +62,12 @@ const VARIANTS = [
 
 // ---- shared/reused result + scratch (never retained by callers) ----------
 const PASS_RESULT = { stopped: false, damage: 0, crit: false, showNumber: false };
-const _hitResult = { stopped: true, damage: 0, crit: false, showNumber: true, sound: "hit" };
+const _hitResult = { stopped: true, damage: 0, crit: false, showNumber: true, sound: "zombieHit" };
+
+const GROAN_MIN_INTERVAL_PER_ZOMBIE = 4; // s — random re-groan window while pursuing
+const GROAN_MAX_INTERVAL_PER_ZOMBIE = 9;
+const GROAN_GLOBAL_THROTTLE = 0.4; // s — max 1 groan sfx across the whole horde
+const GROAN_RETRY_DELAY = 0.5; // s — retry soon if throttled, instead of spamming every frame
 
 const _white = new THREE.Color(0xffffff);
 const _flashRed = new THREE.Color(0xff5a4a);
@@ -241,6 +246,7 @@ class Zombie {
     this.burnGlow = 0;
     this.deathYawDelta = 0;
     this.deathYawBase = 0;
+    this.groanTimer = 0; // s until next pursuit groan attempt (sys throttles globally)
 
     // Hittables are registered ONCE for every pool slot (screen calls
     // setHittables once). Inactive slots are parked at y=-50 + invisible.
@@ -290,6 +296,7 @@ class Zombie {
     this.burnDps = 0;
     this.burnUntil = 0;
     this.burnGlow = 0;
+    this.groanTimer = GROAN_MIN_INTERVAL_PER_ZOMBIE + Math.random() * (GROAN_MAX_INTERVAL_PER_ZOMBIE - GROAN_MIN_INTERVAL_PER_ZOMBIE);
     this.mat.color.copy(_white);
 
     this.group.visible = true;
@@ -348,7 +355,7 @@ class Zombie {
 
     _hitResult.damage = dmg;
     _hitResult.crit = isHead;
-    _hitResult.sound = "hit";
+    _hitResult.sound = "zombieHit";
     return _hitResult;
   }
 
@@ -404,10 +411,19 @@ class Zombie {
       this.group.position.y = 0;
       this.state = "chase";
       this.t = 0;
+      this.sys._tryGroan(); // spawn-finish groan (globally throttled)
     }
   }
 
   _updateChase(dt, player) {
+    this.groanTimer -= dt;
+    if (this.groanTimer <= 0) {
+      if (this.sys._tryGroan()) {
+        this.groanTimer = GROAN_MIN_INTERVAL_PER_ZOMBIE + Math.random() * (GROAN_MAX_INTERVAL_PER_ZOMBIE - GROAN_MIN_INTERVAL_PER_ZOMBIE);
+      } else {
+        this.groanTimer = GROAN_RETRY_DELAY; // throttled globally — try again soon
+      }
+    }
     const dist = this._moveToward(dt, player, 1);
     if (dist <= ATTACK_RANGE) {
       this.state = "windup";
@@ -660,6 +676,8 @@ export class ZombieSystem {
     this._gates = [];
     this._gateCursor = 0;
     this._obstacles = [];
+    this._time = 0; // accumulated sim time, used only for the groan throttle
+    this._lastGroanAt = -999;
 
     this._zombies = [];
     this.hittables = [];
@@ -706,6 +724,7 @@ export class ZombieSystem {
 
   update(dt) {
     if (dt <= 0) return;
+    this._time += dt;
     if (this.getPlayerPos) this.getPlayerPos(_player);
 
     // Staggered gate spawning.
@@ -762,5 +781,16 @@ export class ZombieSystem {
   _rollRunner() {
     if (this.wave < 3) return false;
     return Math.random() < Math.min(0.45, 0.12 * (this.wave - 2));
+  }
+
+  // Global groan throttle (max 1 across the whole horde per
+  // GROAN_GLOBAL_THROTTLE seconds) — called by individual zombies on
+  // spawn-finish and periodically while pursuing. Returns true if it played.
+  _tryGroan() {
+    if (!this.audio) return false;
+    if (this._time - this._lastGroanAt < GROAN_GLOBAL_THROTTLE) return false;
+    this._lastGroanAt = this._time;
+    this.audio.play("groan");
+    return true;
   }
 }

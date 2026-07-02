@@ -7,6 +7,7 @@ import { Screen } from "../core/screens.js";
 import { disposeScene, lerp, damp, clamp } from "../core/utils.js";
 import { DEFAULT_BUILD } from "../data/parts.js";
 import { createCourseWorld } from "../world/courseWorld.js";
+import { makeSkyDome } from "../world/skybits.js";
 import { PlayerController } from "../game/playerController.js";
 import { ProjectileSystem } from "../game/projectiles.js";
 import { Effects } from "../game/effects.js";
@@ -51,12 +52,13 @@ export class CourseScreen extends Screen {
       this.mission = null;
     }
 
-    // ---- Scene / lighting (moodier than the static range) ----
+    // ---- Scene / lighting: overcast tension (tuned for ACES, main.js) ----
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x8296a8);
-    this.scene.fog = new THREE.Fog(0x8296a8, 30, 160);
-    this.scene.add(new THREE.HemisphereLight(0xbfd6e8, 0x6a705f, 0.95));
-    const sun = new THREE.DirectionalLight(0xfff2dd, 0.95);
+    this.scene.background = new THREE.Color(0x97a2b4); // fallback = dome horizon
+    this.scene.fog = new THREE.Fog(0x97a2b4, 30, 160);
+    this.scene.add(makeSkyDome(0x475264, 0x97a2b4, { exponent: 0.75 }));
+    this.scene.add(new THREE.HemisphereLight(0xc6cedd, 0x596074, 1.45));
+    const sun = new THREE.DirectionalLight(0xdfe7f2, 1.15); // cool diffuse "sun"
     sun.position.set(25, 45, -15);
     this.scene.add(sun);
 

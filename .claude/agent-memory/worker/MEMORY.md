@@ -3,3 +3,4 @@
 - [Gunbuilder contracts & ownership split](project_gunbuilder_contracts.md) — multi-agent build against CONTRACTS.md, who owns which files, key conventions
 - [Gunbuilder core module notes (owner A)](gunbuilder_core_module_notes.md) — Input/TouchControls 4-arg wiring, touch layout, audio synth approach, ScreenManager.goTo resize
 - [Gunbuilder progression/career data layer](project_gunbuilder_progression.md) — progression.js unlock table/XP curve/mission design, what's NOT wired yet (careerScreen etc.)
+- [Gunbuilder headless Playwright rig](gunbuilder_playwright_headless_rig.md) — how to actually launch working headless Chromium here (no local package.json, port/exe pinning, autoplay flag, __gb probing)

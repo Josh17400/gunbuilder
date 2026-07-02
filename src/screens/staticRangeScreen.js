@@ -6,6 +6,7 @@ import { Screen } from "../core/screens.js";
 import { disposeScene, lerp, damp, clamp } from "../core/utils.js";
 import { DEFAULT_BUILD } from "../data/parts.js";
 import { createStaticRangeWorld } from "../world/rangeStaticWorld.js";
+import { makeSkyDome } from "../world/skybits.js";
 import { PlayerController } from "../game/playerController.js";
 import { ProjectileSystem } from "../game/projectiles.js";
 import { Effects } from "../game/effects.js";
@@ -49,13 +50,16 @@ export class StaticRangeScreen extends Screen {
     this._hitOwner = null;         // stamped by wrapped onHit, read in onAnyHit
     this._objRefresh = 0;
 
-    // ---- Scene / lighting ----
+    // ---- Scene / lighting: bright morning (tuned for ACES, see main.js) ----
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x9fc4e0);
-    this.scene.fog = new THREE.Fog(0x9fc4e0, 70, 260);
-    this.scene.add(new THREE.HemisphereLight(0xbfd6e8, 0x6a705f, 1.05));
-    const sun = new THREE.DirectionalLight(0xfff2dd, 1.0);
-    sun.position.set(30, 50, 20);
+    this.scene.background = new THREE.Color(0xd8e9f4); // fallback = dome horizon
+    this.scene.fog = new THREE.Fog(0xd8e9f4, 70, 260);
+    // exponent 0.5: the covered firing line caps visible sky at ~30° elevation,
+    // so the blue has to arrive fast or the player only ever sees haze.
+    this.scene.add(makeSkyDome(0x3070c8, 0xcfe2f2, { exponent: 0.5 }));
+    this.scene.add(new THREE.HemisphereLight(0xcfe2f2, 0x7d8a68, 1.4));
+    const sun = new THREE.DirectionalLight(0xffedd0, 1.7); // warm morning sun
+    sun.position.set(35, 42, 25);
     this.scene.add(sun);
 
     this.camera = new THREE.PerspectiveCamera(

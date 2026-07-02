@@ -19,6 +19,18 @@ const SPRINT_SPEED = 7.2;
 const RECOIL_PROPORTIONAL_LAMBDA = 6;
 const DEG2RAD = Math.PI / 180;
 
+// ---- headbob / landing-dip feel (additive local camera-y offsets) -------
+const BOB_AMP_WALK = 0.012;
+const BOB_AMP_SPRINT = 0.02;
+const BOB_FREQ_BASE = 1.6; // Hz at WALK_SPEED, scaled by actual horizontal speed
+const BOB_ADS_CUTOFF = 0.3; // adsAmount above this zeroes headbob
+const BOB_LAMBDA = 10; // smoothing toward target bob amplitude/offset
+const LAND_DIP_SPRING = 200; // spring constant recovering the dip to 0
+const LAND_DIP_DAMPING = 24; // spring damping
+const LAND_DIP_PER_MPS = 0.0055; // dip magnitude (m) per m/s of impact speed
+const LAND_DIP_MAX_MAG = 0.12;
+const TWO_PI = Math.PI * 2;
+
 // Preallocated scratch — no per-frame allocations in the hot update path.
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -59,6 +71,15 @@ export class PlayerController {
     this.isSprinting = false;
     this.isMoving = false;
 
+    // Headbob + landing-dip: additive local camera-y offsets applied at the
+    // same place rotation/position is written (_applyCameraTransform), so
+    // they never touch this.position or fight recoil/FOV.
+    this._bobPhase = 0;
+    this._bobAmp = 0;
+    this._bobOffset = 0;
+    this._landDipOffset = 0;
+    this._landDipVel = 0;
+
     camera.rotation.order = "YXZ";
     this._fov = camera.isPerspectiveCamera ? camera.fov : BASE_FOV;
 
@@ -78,6 +99,11 @@ export class PlayerController {
     this.recoilPitch = 0;
     this.recoilYaw = 0;
     this.onGround = false;
+    this._bobPhase = 0;
+    this._bobAmp = 0;
+    this._bobOffset = 0;
+    this._landDipOffset = 0;
+    this._landDipVel = 0;
     this._applyCameraTransform();
   }
 
@@ -108,6 +134,7 @@ export class PlayerController {
     this.velocity.x = damp(this.velocity.x, _wishDir.x * speed, accelLambda, dt);
     this.velocity.z = damp(this.velocity.z, _wishDir.z * speed, accelLambda, dt);
     this.isMoving = this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z > 0.04;
+    const horizSpeed = Math.sqrt(this.velocity.x * this.velocity.x + this.velocity.z * this.velocity.z);
 
     // ---- Jump / gravity ----
     if (state.jumpPressed && this.onGround) {
@@ -127,7 +154,46 @@ export class PlayerController {
       this.camera.updateProjectionMatrix();
     }
 
+    this._updateBob(dt, horizSpeed, adsAmount);
+    this._updateLandDip(dt);
     this._applyCameraTransform();
+  }
+
+  // Sine local-y bob while grounded + moving; amplitude smoothed toward 0
+  // when idle/airborne/heavily ADS (>0.3), frequency scales with actual
+  // horizontal speed so sprint strides read faster than a walk.
+  _updateBob(dt, horizSpeed, adsAmount) {
+    const moving = this.onGround && horizSpeed > 0.15 && adsAmount <= 0.3;
+    const targetAmp = moving ? (this.isSprinting ? BOB_AMP_SPRINT : BOB_AMP_WALK) : 0;
+    this._bobAmp = damp(this._bobAmp, targetAmp, BOB_LAMBDA, dt);
+    if (moving) {
+      this._bobPhase += dt * TWO_PI * BOB_FREQ_BASE * (horizSpeed / WALK_SPEED);
+      if (this._bobPhase > 1e6) this._bobPhase %= TWO_PI; // guard unbounded growth
+    }
+    this._bobOffset = this._bobAmp > 1e-5 ? Math.sin(this._bobPhase) * this._bobAmp : 0;
+  }
+
+  // Critically-ish damped spring pulling the landing dip back to 0 every
+  // frame; _registerLanding() (called from _moveAndCollide) kicks it
+  // negative on impact.
+  _updateLandDip(dt) {
+    if (this._landDipOffset === 0 && this._landDipVel === 0) return;
+    const accel = -LAND_DIP_SPRING * this._landDipOffset - LAND_DIP_DAMPING * this._landDipVel;
+    this._landDipVel += accel * dt;
+    this._landDipOffset += this._landDipVel * dt;
+    if (Math.abs(this._landDipOffset) < 1e-4 && Math.abs(this._landDipVel) < 1e-4) {
+      this._landDipOffset = 0;
+      this._landDipVel = 0;
+    }
+  }
+
+  // impactVelY is negative (falling speed at the instant of landing).
+  _registerLanding(impactVelY) {
+    const speed = -impactVelY;
+    if (speed <= 0.5) return; // gentle step-downs don't warrant a dip
+    const dipMag = Math.min(speed * LAND_DIP_PER_MPS, LAND_DIP_MAX_MAG);
+    this._landDipOffset = -dipMag;
+    this._landDipVel = 0;
   }
 
   _decayRecoil(dt) {
@@ -139,12 +205,14 @@ export class PlayerController {
   _moveAndCollide(dt) {
     // Vertical integration — land on box tops when falling; floor at y=0 is
     // always solid regardless of the collider list.
+    const wasGrounded = this.onGround;
     const prevY = this.position.y;
     this.position.y += this.velocity.y * dt;
     this.onGround = false;
 
     if (this.position.y <= 0) {
       this.position.y = 0;
+      if (!wasGrounded) this._registerLanding(this.velocity.y);
       this.velocity.y = 0;
       this.onGround = true;
     } else if (this.velocity.y <= 0) {
@@ -158,6 +226,7 @@ export class PlayerController {
           this.position.z <= box.max.z + RADIUS
         ) {
           this.position.y = box.max.y;
+          if (!wasGrounded) this._registerLanding(this.velocity.y);
           this.velocity.y = 0;
           this.onGround = true;
           break;
@@ -220,7 +289,11 @@ export class PlayerController {
   }
 
   _applyCameraTransform() {
-    this.camera.position.set(this.position.x, this.position.y + EYE_HEIGHT, this.position.z);
+    this.camera.position.set(
+      this.position.x,
+      this.position.y + EYE_HEIGHT + this._bobOffset + this._landDipOffset,
+      this.position.z
+    );
     this.camera.rotation.set(this.pitch + this.recoilPitch, this.yaw + this.recoilYaw, 0);
   }
 

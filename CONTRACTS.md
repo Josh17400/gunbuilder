@@ -139,7 +139,10 @@ export const audio = {
   init(),                       // create/resume AudioContext — main.js calls on first pointerdown/touchend
   play(name, opts = {})         // names: "shot","shotSuppressed","shotHeavy","dry","reload",
                                 //        "hit","hitmarker","ding","popup","fall","explosion",
-                                //        "uiClick","beep","finish"
+                                //        "uiClick","beep","finish","groan","zombieHit",
+                                //        "waveStart","buy","heartbeat"
+  setSpin(amount),              // managed minigun spin drone loop (0..1)
+  setHeartbeat(on),             // managed low-HP heartbeat loop
   setVolume(v)
 }
 ```

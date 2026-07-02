@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { disposeScene } from "../core/utils.js";
 import { PopUpTarget, MoverTarget, ThinWall } from "../game/targets.js";
+import { makeBlobShadows, makeGroundPatches } from "./skybits.js";
 
 const COLOR = {
   concrete: 0x8a8d90,
@@ -252,9 +253,35 @@ export function createCourseWorld() {
   pushBox(geos, colliders, -5.5, 0.02, -23, 0.5, 0.04, 2, COLOR.arrow, { collider: false });
   pushBox(geos, colliders, -5, 0.02, -29, 0.5, 0.04, 3, COLOR.arrow, { collider: false });
 
+  // ---- ground variation: worn floor patches (merged → 0 extra calls) ---
+  geos.push(...makeGroundPatches([
+    { x: 0.3, z: -3.5, sx: 2.4, sz: 3.2, color: 0x63666a, rot: 0.5 },   // corridor
+    { x: -0.6, z: -8.5, sx: 2.0, sz: 2.6, color: 0x606368, rot: -0.4 }, // corridor end
+    { x: -5.5, z: -11, sx: 4.5, sz: 3.5, color: 0x626569, rot: 0.3 },   // room A
+    { x: -7.5, z: -14.5, sx: 3.0, sz: 2.4, color: 0x5e6166, rot: -0.7 },// room A back
+    { x: -5.5, z: -20, sx: 2.4, sz: 4.5, color: 0x63666a, rot: 0.15 },  // hallway
+    { x: -3.0, z: -27.5, sx: 4.0, sz: 3.5, color: 0x606368, rot: 0.6 }, // final room
+    { x: -7.0, z: -31, sx: 3.2, sz: 3.0, color: 0x626569, rot: -0.3 },  // final room
+    { x: 1.2, z: 3.5, sx: 2.6, sz: 2.6, color: 0x63666a, rot: 0.9 },    // start box
+  ]));
+
   // Parent every target's visual group into the world (screens only add
   // world.group to the scene — targets would otherwise never render).
   for (const t of targets) group.add(t.group);
+
+  // Soft blob shadows under targets — ONE merged mesh (1 draw call).
+  // Movers get an elongated blob spanning their slide range; ThinWalls skip
+  // (they meet the floor flush, a blob would just draw a dark box outline).
+  group.add(makeBlobShadows(
+    targets
+      .filter((t) => !(t instanceof ThinWall))
+      .map((t) => {
+        if (t instanceof MoverTarget) {
+          return { x: t.group.position.x, z: t.group.position.z, r: 0.5, sx: 3.9, sz: 1.0 };
+        }
+        return { x: t.group.position.x, z: t.group.position.z, r: 0.5 };
+      })
+  ));
 
   // ---- merge all solid geometry into one mesh --------------------------
   const mergedGeo = mergeGeometries(geos, false);

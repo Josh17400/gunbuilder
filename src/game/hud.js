@@ -36,8 +36,7 @@ function ensureInjectedStyles() {
   style.textContent = `
     .gb-ammo-low { animation: gb-ammo-flash 0.5s ease-in-out infinite; }
     @keyframes gb-ammo-flash { 0%, 100% { color: #ff4b4b; } 50% { color: #ffb0b0; } }
-    .gb-hud-toast { transition: opacity 200ms ease; }
-    .gb-overlay-panel { transition: opacity 150ms ease; }
+    .gb-hud-toast { transition: opacity 200ms ease, transform 200ms ease; }
   `;
   document.head.appendChild(style);
   stylesInjected = true;
@@ -68,6 +67,13 @@ export class HUD {
 
     this.el = {};
     this.root = el("div", "gb-hud", "position:fixed;inset:0;pointer-events:none;z-index:10;display:none;");
+    // Fullscreen modal overlays (pause/finish/mission/gameover) are mounted
+    // directly on document.body — see _buildOverlayScaffold for why: #ui
+    // (z-index 10) is a lower stacking context than #touch (z-index 30, see
+    // style.css), so a backdrop nested inside this.root/#ui can never paint
+    // above the touch control buttons no matter its own z-index. Tracked
+    // here so mount()/unmount() can attach/detach them alongside this.root.
+    this._overlayEls = [];
 
     this._buildCrosshair();
     this._buildScopeVignette();
@@ -202,21 +208,40 @@ export class HUD {
     this.el.interact = interact;
   }
 
+  // Shared fullscreen-overlay scaffold for pause / finish / mission result /
+  // game over: a dark backdrop (fixed, centers its one child) around a
+  // width-capped .gb-overlay-panel (gb-panel styling, fades+rises in via a
+  // CSS animation on open). The panel itself stays overflow:hidden and an
+  // inner .gb-overlay-panel-body does the actual scrolling — same split as
+  // .gb-stat-panel/.gb-stat-body, so a short viewport (e.g. landscape phone)
+  // never lets a composited scroll layer paint over the WebGL canvas.
+  // modifierClass tags the backdrop for the per-overlay background tint in
+  // style.css (.gb-pause / .gb-finish / .gb-mission / .gb-gameover).
+  //
+  // NOT appended under this.root: these are meant to fully block input
+  // (including touch buttons) while shown, which requires out-ranking
+  // #touch's stacking context — see the this._overlayEls comment in the
+  // constructor. mount()/unmount() attach/detach them to document.body.
+  _buildOverlayScaffold(modifierClass) {
+    const backdrop = el("div", `gb-overlay-backdrop ${modifierClass}`, "display:none;");
+    const panel = el("div", "gb-panel gb-overlay-panel");
+    const body = el("div", "gb-overlay-panel-body");
+    panel.appendChild(body);
+    backdrop.appendChild(panel);
+    this._overlayEls.push(backdrop);
+    return { backdrop, panel, body };
+  }
+
   _buildPause() {
-    const overlay = el(
-      "div",
-      "gb-pause gb-overlay-panel",
-      "position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,8,10,0.82);pointer-events:auto;z-index:50;"
-    );
-    const title = el("div", "gb-pause-title", "font-size:26px;font-weight:700;color:#f2f2f2;margin-bottom:8px;");
+    const { backdrop, body } = this._buildOverlayScaffold("gb-pause");
+    const title = el("div", "gb-pause-title gb-overlay-title", "font-size:26px;font-weight:700;color:#f2f2f2;");
     const resumeBtn = button("Resume");
     const retryBtn = button("Retry");
     const builderBtn = button("Back to Builder");
     const menuBtn = button("Main Menu");
-    overlay.append(title, resumeBtn, retryBtn, builderBtn, menuBtn);
-    this.root.appendChild(overlay);
+    body.append(title, resumeBtn, retryBtn, builderBtn, menuBtn);
 
-    this.el.pauseOverlay = overlay;
+    this.el.pauseOverlay = backdrop;
     this.el.pauseTitle = title;
     this.el.pauseResumeBtn = resumeBtn;
     this.el.pauseRetryBtn = retryBtn;
@@ -225,11 +250,7 @@ export class HUD {
   }
 
   _buildFinish() {
-    const overlay = el(
-      "div",
-      "gb-pause gb-finish gb-overlay-panel",
-      "position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(8,8,10,0.86);pointer-events:auto;z-index:50;"
-    );
+    const { backdrop, body } = this._buildOverlayScaffold("gb-finish");
     const time = el("div", "gb-finish-time", "font-size:44px;font-weight:800;color:#f2f2f2;font-family:'Courier New',monospace;");
     const newBest = el("div", "gb-finish-newbest", "font-size:16px;font-weight:700;color:#ffb347;display:none;");
     const best = el("div", "gb-finish-best", "font-size:14px;color:#c8c8c8;");
@@ -238,10 +259,9 @@ export class HUD {
     const retryBtn = button("Retry");
     const builderBtn = button("Back to Builder");
     const menuBtn = button("Main Menu");
-    overlay.append(time, newBest, best, penalties, xp, retryBtn, builderBtn, menuBtn);
-    this.root.appendChild(overlay);
+    body.append(time, newBest, best, penalties, xp, retryBtn, builderBtn, menuBtn);
 
-    this.el.finishOverlay = overlay;
+    this.el.finishOverlay = backdrop;
     this.el.finishTime = time;
     this.el.finishNewBest = newBest;
     this.el.finishBest = best;
@@ -253,12 +273,8 @@ export class HUD {
   }
 
   _buildMissionResult() {
-    const overlay = el(
-      "div",
-      "gb-pause gb-mission gb-overlay-panel",
-      "position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(8,8,10,0.86);pointer-events:auto;z-index:50;"
-    );
-    const title = el("div", "gb-mission-title", "font-size:34px;font-weight:800;color:#ffb347;letter-spacing:0.08em;text-align:center;");
+    const { backdrop, body } = this._buildOverlayScaffold("gb-mission");
+    const title = el("div", "gb-mission-title gb-overlay-title", "font-size:34px;font-weight:800;color:#ffb347;text-align:center;");
     const sub = el("div", "gb-mission-sub", "font-size:15px;color:#c8c8c8;text-align:center;");
     const stars = el("div", "gb-mission-stars", "font-size:44px;letter-spacing:12px;line-height:1;margin:4px 0 2px;text-indent:12px;");
     const time = el("div", "gb-mission-time", "font-size:20px;font-weight:700;font-family:'Courier New',monospace;color:#f2f2f2;display:none;");
@@ -266,10 +282,9 @@ export class HUD {
     const retryBtn = button("Retry");
     const nextBtn = button("Next Mission");
     const careerBtn = button("Career");
-    overlay.append(title, sub, stars, time, xp, retryBtn, nextBtn, careerBtn);
-    this.root.appendChild(overlay);
+    body.append(title, sub, stars, time, xp, retryBtn, nextBtn, careerBtn);
 
-    this.el.missionOverlay = overlay;
+    this.el.missionOverlay = backdrop;
     this.el.missionTitle = title;
     this.el.missionSub = sub;
     this.el.missionStars = stars;
@@ -330,12 +345,8 @@ export class HUD {
     this.root.appendChild(wave);
     this.el.wave = wave;
 
-    const overlay = el(
-      "div",
-      "gb-pause gb-gameover gb-overlay-panel",
-      "position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(14,4,6,0.88);pointer-events:auto;z-index:50;"
-    );
-    const title = el("div", "gb-gameover-title", "font-size:40px;font-weight:900;color:#ff5a48;letter-spacing:0.12em;text-align:center;");
+    const { backdrop, body } = this._buildOverlayScaffold("gb-gameover");
+    const title = el("div", "gb-gameover-title gb-overlay-title", "font-size:40px;font-weight:900;color:#ff5a48;text-align:center;");
     title.textContent = "GAME OVER";
     const waveLine = el("div", "gb-gameover-wave", "font-size:24px;font-weight:800;color:#f2f2f2;");
     const pointsLine = el("div", "gb-gameover-points", "font-size:16px;color:#c8c8c8;");
@@ -345,10 +356,9 @@ export class HUD {
     const xpLine = el("div", "gb-gameover-xp", "font-size:15px;font-weight:700;color:#ffb347;display:none;");
     const retryBtn = button("Retry");
     const menuBtn = button("Main Menu");
-    overlay.append(title, waveLine, pointsLine, newBest, bestLine, xpLine, retryBtn, menuBtn);
-    this.root.appendChild(overlay);
+    body.append(title, waveLine, pointsLine, newBest, bestLine, xpLine, retryBtn, menuBtn);
 
-    this.el.gameOverOverlay = overlay;
+    this.el.gameOverOverlay = backdrop;
     this.el.gameOverWave = waveLine;
     this.el.gameOverPoints = pointsLine;
     this.el.gameOverNewBest = newBest;
@@ -369,12 +379,20 @@ export class HUD {
     this.root.classList.toggle("gb-hud-touch", this._isTouch);
     // Touch: lift the interact prompt above the ADS/FIRE button cluster.
     this.el.interact.style.bottom = this._isTouch ? "250px" : "90px";
+    // Overlays live on document.body (see _buildOverlayScaffold), not
+    // this.root, so they need their own attach step.
+    for (const ov of this._overlayEls) {
+      if (!ov.parentNode) document.body.appendChild(ov);
+    }
   }
 
   unmount() {
     this.root.style.display = "none";
     if (this.root.parentNode) {
       this.root.parentNode.removeChild(this.root);
+    }
+    for (const ov of this._overlayEls) {
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
     }
   }
 
@@ -502,10 +520,15 @@ export class HUD {
     const toast = this.el.toast;
     toast.textContent = text;
     toast.style.display = "";
-    // Force reflow so opacity always transitions from 0 on retrigger.
+    // Start a touch below the resting spot so the transition (opacity +
+    // transform, declared in ensureInjectedStyles) reads as a slide-up.
+    toast.style.transform = "translate(-50%, -35%)";
+    // Force reflow so opacity/transform always transition from their
+    // start state on retrigger.
     // eslint-disable-next-line no-unused-expressions
     toast.offsetHeight;
     toast.style.opacity = "1";
+    toast.style.transform = "translate(-50%, -50%)";
 
     if (this._toastTimer) clearTimeout(this._toastTimer);
     if (this._toastHideTimer) clearTimeout(this._toastHideTimer);
@@ -600,7 +623,9 @@ export class HUD {
     const starsEl = this.el.missionStars;
     starsEl.textContent = "";
     for (let i = 0; i < 3; i++) {
-      const s = el("span", null, `color:${i < stars ? "#ffd447" : "#4a4a52"};`);
+      // 150ms stagger, scale-overshoot pop-in (see .gb-star / gb-star-pop in
+      // style.css) — gold filled for earned, dim outline for missed.
+      const s = el("span", "gb-star", `color:${i < stars ? "#ffd447" : "#4a4a52"};animation-delay:${i * 150}ms;`);
       s.textContent = i < stars ? "★" : "☆";
       starsEl.appendChild(s);
     }

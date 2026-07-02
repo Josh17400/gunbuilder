@@ -20,6 +20,7 @@ import { HUD } from "../game/hud.js";
 import { ViewModel } from "../gun/viewmodel.js";
 import { Weapon } from "../gun/weapon.js";
 import { copyBuild, loadProgression, grantXp } from "./missionShared.js";
+import { makeSkyDome } from "../world/skybits.js";
 
 const ZOMBIES_KEY = "gunbuilder.v1.zombies";
 const MAX_HP = 100;
@@ -95,14 +96,17 @@ export class ZombiesScreen extends Screen {
     this._hudMode = null;
     this._hitCount = -1;
 
-    // ---- Scene / lighting (dusk) ----
+    // ---- Scene / lighting (dusk drama — tuned for ACES, see main.js) ----
     // Rig tuned with the zombiesWorld palette (see builder memory: the world
     // is pure geometry — without screen lights the arena is near-black).
+    // Dome: deep purple zenith into a burnt-orange horizon band that glows
+    // just above the perimeter walls (exponent <1 keeps the band low).
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x2b2433);
-    this.scene.fog = new THREE.Fog(0x2b2433, 28, 85);
+    this.scene.background = new THREE.Color(0x93481f); // fallback = dome horizon
+    this.scene.fog = new THREE.Fog(0x352838, 28, 85);
+    this.scene.add(makeSkyDome(0x261c3e, 0x93481f, { exponent: 0.72 }));
     this.scene.add(new THREE.HemisphereLight(0x9fa4cc, 0x4a4038, 1.5));
-    const sun = new THREE.DirectionalLight(0xffa666, 1.6); // low dusk sun
+    const sun = new THREE.DirectionalLight(0xffa666, 1.8); // low dusk sun
     sun.position.set(-30, 16, 12);
     this.scene.add(sun);
 
@@ -225,12 +229,14 @@ export class ZombiesScreen extends Screen {
     this._sinceDamage = 0;
     this.ctx.audio.play("hit");
     this.hud.setHealthVignette(clamp((1 - this.hp / MAX_HP) * 0.85, 0, 0.85));
+    this.ctx.audio.setHeartbeat(this.hp > 0 && this.hp <= 30);
     if (this.hp <= 0) this._die();
   }
 
   _die() {
     this.state = "dying";
     this._slowmoLeft = SLOWMO_REAL_SECONDS;
+    this.ctx.audio.setHeartbeat(false);
     this.hud.setHealthVignette(0.85);
     this.hud.setObjective(null);
     this.hud.showInteractPrompt(null);
@@ -321,6 +327,7 @@ export class ZombiesScreen extends Screen {
     this.state = "combat";
     this._waveHadZombies = false;
     this._combatElapsed = 0;
+    this.ctx.audio.play("waveStart");
     this.hud.setWave(n);
     this.hud.setObjective(null);
     this._hideBanner();
@@ -423,7 +430,7 @@ export class ZombiesScreen extends Screen {
     if (this.state === "dying" || this.state === "dead" || this.paused) return;
     if (!this._trySpend(this.world.ammoCrate.cost)) return;
     this.weapon.refill();
-    this.ctx.audio.play("uiClick");
+    this.ctx.audio.play("buy");
     this.hud.setAmmo(this.weapon.ammoInMag, this.weapon.stats.magSize);
     this.hud.showMessage("Ammo refilled", 1200);
   }
@@ -438,7 +445,7 @@ export class ZombiesScreen extends Screen {
 
     const rcv = (PARTS_BY_SLOT.receiver || []).find((p) => p.id === build.receiver);
     this.hud.showMessage(rcv ? rcv.name : (build.name || "New weapon"), 2200);
-    this.ctx.audio.play("finish");
+    this.ctx.audio.play("buy");
   }
 
   // Random legal build: random receiver, then a random compatible part (or
@@ -566,6 +573,7 @@ export class ZombiesScreen extends Screen {
     if (this._sinceDamage >= REGEN_DELAY && this.hp < MAX_HP) {
       this.hp = Math.min(MAX_HP, this.hp + REGEN_RATE * dt);
       this.hud.setHealthVignette(clamp((1 - this.hp / MAX_HP) * 0.85, 0, 0.85));
+      if (this.hp > 30) this.ctx.audio.setHeartbeat(false);
     }
 
     // 6. waves
@@ -581,6 +589,7 @@ export class ZombiesScreen extends Screen {
 
   exit() {
     this._ready = false;
+    if (this.ctx) this.ctx.audio.setHeartbeat(false);
     if (this.ctx) {
       this.ctx.input.onPauseRequest = null;
       this.ctx.input.setGameplayMode(false);

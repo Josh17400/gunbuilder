@@ -4,6 +4,7 @@ import * as THREE from "three";
 import { Screen } from "../core/screens.js";
 import { disposeScene, clamp } from "../core/utils.js";
 import { buildGunMesh, disposeGun } from "../gun/gunFactory.js";
+import { makeBlobShadow } from "../world/skybits.js";
 import { DEFAULT_BUILD } from "../data/parts.js";
 import { getLevel } from "../data/progression.js";
 import { VERSION } from "../version.js";
@@ -28,10 +29,23 @@ export class MenuScreen extends Screen {
       45, window.innerWidth / Math.max(1, window.innerHeight), 0.05, 50
     );
 
-    const dir = new THREE.DirectionalLight(0xfff2dd, 1.0);
+    // Studio three-point-ish rig (tuned for ACES, see main.js): warm key,
+    // cool hemisphere fill, and a cool rim that sweeps as the gun rotates.
+    const dir = new THREE.DirectionalLight(0xfff2dd, 1.65);
     dir.position.set(2, 3, 2);
     this.scene.add(dir);
-    this.scene.add(new THREE.HemisphereLight(0x9fb4cc, 0x2a2e33, 0.8));
+    this.scene.add(new THREE.HemisphereLight(0x9fb4cc, 0x2a2e33, 1.25));
+    const rim = new THREE.DirectionalLight(0x86a8d8, 1.1);
+    rim.position.set(-2.5, 2.2, -2.5);
+    this.scene.add(rim);
+
+    // Studio floor disc so the blob shadow has a surface to read against.
+    const floor = new THREE.Mesh(
+      new THREE.CylinderGeometry(2.4, 2.4, 0.02, 40),
+      new THREE.MeshLambertMaterial({ color: 0x1c2028 })
+    );
+    floor.position.y = -0.01;
+    this.scene.add(floor);
 
     this.pivot = new THREE.Group();
     this.pivot.position.set(0, 1.15, 0);
@@ -44,8 +58,14 @@ export class MenuScreen extends Screen {
     const box = new THREE.Box3().setFromObject(this.gunGroup);
     const sphere = box.getBoundingSphere(new THREE.Sphere());
     const dist = clamp(sphere.radius * 3.4, 0.9, 2.4);
-    this.camera.position.set(0.12, 1.32, dist);
+    this._camBase = new THREE.Vector3(0.12, 1.32, dist);
+    this._camT = 0;
+    this.camera.position.copy(this._camBase);
     this.camera.lookAt(0, 1.15, 0);
+
+    // Soft blob shadow under the showcase gun.
+    const blob = makeBlobShadow(clamp(sphere.radius * 1.2, 0.35, 0.9));
+    this.scene.add(blob);
 
     // ---- DOM ----
     const ui = document.getElementById("ui");
@@ -139,6 +159,14 @@ export class MenuScreen extends Screen {
   update(dt) {
     if (!this.pivot) return;
     this.pivot.rotation.y += 0.35 * dt;
+    // Slow camera drift — keeps the showcase alive without stealing focus.
+    this._camT += dt;
+    this.camera.position.set(
+      this._camBase.x + Math.sin(this._camT * 0.21) * 0.07,
+      this._camBase.y + Math.sin(this._camT * 0.13 + 1.7) * 0.045,
+      this._camBase.z
+    );
+    this.camera.lookAt(0, 1.15, 0);
   }
 
   exit() {

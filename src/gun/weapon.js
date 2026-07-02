@@ -113,8 +113,10 @@ export class Weapon {
       } else {
         this.spinAmount += Math.sign(spinTarget - this.spinAmount) * spinStep;
       }
+      audio.setSpin(this.spinAmount);
     } else if (this.spinAmount !== 0) {
       this.spinAmount = 0;
+      audio.setSpin(0);
     }
 
     // --- Fire ---
@@ -232,9 +234,11 @@ export class Weapon {
     this._prevReload = false;
     this._prevMode = false;
     this.deps.hud.setFireMode(this.fireMode);
+    this.deps.audio.setSpin(0);
   }
 
   dispose() {
+    if (this.deps && this.deps.audio) this.deps.audio.setSpin(0);
     this.deps = null;
   }
 }

@@ -47,3 +47,46 @@ toast/message re-trigger does use a `toast.offsetHeight` reflow hack since it's 
 toggling via plain style, not WAAPI). A single `<style id="gb-hud-inline-styles">` is injected
 into `document.head` once (guarded by id check) for the ammo-low blink keyframe and toast
 transition — needed because style.css (owner A) didn't exist yet at implementation time.
+
+**Overlay restructure (UI polish pass, 2026-07-02)**: pause/finish/mission-result/game-over used
+to be a single fullscreen flex div with buttons as direct children → `.gb-btn`'s CSS (`width:
+100%` under `.gb-pause`) resolved against the *full viewport*, so buttons rendered edge-to-edge on
+desktop. Fixed by a shared `_buildOverlayScaffold(modifierClass)` helper in hud.js: backdrop
+(`.gb-overlay-backdrop`, dark + centers its one child) → panel (`.gb-panel.gb-overlay-panel`,
+width-capped `min(420px,100%)`, fade+rise CSS `animation` on open) → inner `.gb-overlay-panel-body`
+(the actual flex column + scroller). All style now lives in style.css under `.gb-overlay-*`; the
+per-overlay class (`gb-pause`/`gb-finish`/`gb-mission`/`gb-gameover`) is kept only as a modifier on
+the backdrop for background-tint differences.
+
+**Gotcha found & fixed: #touch outranks #ui, so overlays inside `this.root` can never paint above
+touch buttons.** index.html has `#game`, `#ui` (z-index 10), `#touch` (z-index 30) as siblings of
+`<body>`. `#ui` is `position:fixed` with its own z-index → it forms a stacking context that caps
+*every* descendant, no matter what z-index they set internally. Since the old pause/finish/mission/
+gameover overlays lived inside `this.root` (→ `#ui`), they could never out-rank `#touch`'s buttons
+even at `z-index:50` — confirmed via Playwright iPhone screenshot: FIRE/JUMP/ADS/etc. painted over
+the "Paused" panel. Not something introduced by the overlay restructure — it was already true of
+the pre-existing single-div overlay, just newly visible once the panel had legible button labels to
+be occluded. Fix: the 4 overlay backdrops are **not** appended to `this.root`; they're tracked in
+`this._overlayEls` and attached directly to `document.body` in `mount()` / detached in `unmount()`
+(dispose() already calls unmount()). As true top-level siblings of `#touch`, their `z-index:50` now
+correctly wins over `#touch`'s `30`. If a 5th overlay is ever added, route it through
+`_buildOverlayScaffold` rather than `this.root.appendChild` or it'll regress this bug.
+
+**Gotcha: style.css has dead/stale selectors that predate hud.js's actual implementation.**
+`.gb-crosshair`, `.gb-ammo`, `.gb-ammo-mag`/`.gb-ammo-reserve`, `.gb-timer`/`.gb-objective`'s
+`position` etc. were written (owner A) before hud.js existed and don't match hud.js's real class
+names (`.gb-ammo-count`/`.gb-ammo-mode`/`.gb-ammo-build`, not `.gb-ammo-mag`) or get overridden
+per-property by hud.js's inline `cssText`. **Inline style wins per-property, not per-rule** — so a
+CSS class rule can still land for whichever properties hud.js *didn't* set inline (this is how the
+2026-07-02 pass added timer/objective background pills and tabular-nums purely via style.css
+without touching hud.js's inline strings — verified by checking hud.js's cssText for each target
+element first). Don't assume a class name having a style.css rule means that rule is live; check
+what hud.js sets inline before relying on or editing a rule for HUD elements.
+
+**Star pop-in / heading letter-spacing / numeral tabular-nums conventions** (2026-07-02 polish
+pass, likely to recur): mission-result stars get class `gb-star` + inline `animation-delay:
+${i*150}ms` set in JS (stagger amount), actual keyframe (`gb-star-pop`, scale-overshoot) lives in
+CSS. Overlay headings share `.gb-overlay-title` (letter-spacing 0.06em) instead of each hardcoding
+its own value. Numeric HUD/overlay text (ammo, timer, points, finish/mission/gameover stat lines)
+gets `font-variant-numeric: tabular-nums` via a shared style.css selector list, not per-element
+inline — cheaper to extend when a new numeric readout is added.

@@ -22,6 +22,11 @@ const renderer = new THREE.WebGLRenderer({
   powerPreference: "high-performance",
 });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+// Filmic look: ACES compresses highlights and enriches saturated colors.
+// Every screen's light intensities are tuned FOR this curve — if you change
+// it, retune the scenes (ACES darkens mids; they run ~1.3-1.6× hotter).
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
 
 const input = new Input(canvas);
 

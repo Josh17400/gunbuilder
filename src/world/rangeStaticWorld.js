@@ -11,6 +11,7 @@ import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import { disposeScene } from "../core/utils.js";
 import { RingTarget, SteelPlate } from "../game/targets.js";
+import { makeBlobShadows, makeGroundPatches } from "./skybits.js";
 
 const COLOR = {
   concrete: 0x8a8d90,
@@ -143,6 +144,17 @@ export function createStaticRangeWorld() {
   // (invisible boundary — player can walk downrange but not escape here).
   pushInvisibleWall(colliders, 0, 1.5, 4.55, 13.5, 3, 0.5);
 
+  // ---- ground variation: worn grass patches (merged → 0 extra calls) ---
+  geos.push(...makeGroundPatches([
+    { x: -3.5, z: -14, sx: 5.5, sz: 4.5, color: 0x639454, rot: 0.4 },
+    { x: 3.0, z: -30, sx: 6.5, sz: 5.0, color: 0x5e8a4e, rot: -0.3 },
+    { x: -2.0, z: -46, sx: 5.0, sz: 7.0, color: 0x649051, rot: 0.7 },
+    { x: 4.0, z: -66, sx: 7.0, sz: 5.5, color: 0x5c874d, rot: -0.6 },
+    { x: -3.5, z: -84, sx: 6.0, sz: 6.0, color: 0x628f50, rot: 0.2 },
+    { x: 1.5, z: -105, sx: 8.0, sz: 6.5, color: 0x5e8a4e, rot: -0.4 },
+    { x: 0.0, z: -8, sx: 4.0, sz: 3.0, color: 0x67985a, rot: 1.1 },
+  ]));
+
   // ---- merge all solid geometry into one mesh --------------------------
   const mergedGeo = mergeGeometries(geos, false);
   const mergedMat = new THREE.MeshLambertMaterial({ vertexColors: true });
@@ -182,6 +194,13 @@ export function createStaticRangeWorld() {
     targets.push(new SteelPlate({ position: new THREE.Vector3(laneX[4], 1.0, -d), yaw: Math.PI }));
   }
   for (const t of targets) group.add(t.group);
+
+  // Soft blob shadows under every target — ONE merged mesh (1 draw call).
+  group.add(makeBlobShadows(targets.map((t) => ({
+    x: t.group.position.x,
+    z: t.group.position.z,
+    r: t instanceof RingTarget ? 0.55 : 0.5,
+  }))));
 
   const spawn = { position: new THREE.Vector3(0, 0, 2), yaw: 0 };
 
