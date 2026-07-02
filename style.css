@@ -166,12 +166,12 @@ body {
   color: var(--gb-text);
 }
 .gb-card .gb-card-blurb {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--gb-text-dim);
   margin-top: 2px;
 }
 .gb-card .gb-card-reason {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--gb-danger);
   margin-top: 4px;
 }
@@ -243,100 +243,195 @@ body {
 }
 
 /* ---------------------------------------------------------------------
-   Builder screen — stat panel: right column (>=900px) / bottom drawer
+   Builder screen — header, part cards, tabs, stat panel.
+   Stat panel: right column (>=900px) / STATS-toggled bottom drawer (<900px).
+   NOTE (drawer): the panel itself must NOT be the scroll container — a
+   composited overflow scroller layered over the WebGL canvas paints its
+   out-of-clip region as a white block above the panel (Chromium). The
+   outer panel clips (overflow: hidden); .gb-stat-body scrolls inside it.
 --------------------------------------------------------------------- */
 
-.gb-stat-panel {
-  position: fixed;
+.gb-builder-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  margin: 8px;
+  padding: 8px 10px;
   pointer-events: auto;
-  background: var(--gb-panel);
-  border: 1px solid var(--gb-border);
-  z-index: 15;
+}
+.gb-builder-name {
+  flex: 1;
+  min-width: 0;
+  background: #22262c;
+  border: 1px solid #3a3f46;
+  color: var(--gb-text);
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-family: var(--gb-font);
 }
 
-.gb-stat-drawer-handle {
+.gb-builder-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px 10px;
+  -webkit-overflow-scrolling: touch;
+}
+.gb-builder-tabrow {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 10px 10px;
+}
+.gb-builder-tabscroll {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gb-builder .gb-card {
+  width: 150px;
+}
+.gb-card .gb-card-note {
+  font-size: 11px;
+  color: var(--gb-text-dim);
+  margin-top: 2px;
+}
+
+.gb-stat-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 10px 12px;
+  z-index: 5;
+}
+.gb-stat-head {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.gb-stat-title {
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  color: #dfe3e8;
+}
+.gb-stat-title.gb-preview {
+  color: var(--gb-accent);
+}
+.gb-stat-close {
   display: none;
-  width: 40px;
-  height: 4px;
-  border-radius: 2px;
-  background: rgba(255, 255, 255, 0.3);
-  margin: 0 auto 10px;
+  min-height: 30px;
+  min-width: 38px;
+  padding: 4px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+.gb-stat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 @media (min-width: 900px) {
   .gb-stat-panel {
-    top: calc(16px + env(safe-area-inset-top));
-    right: calc(16px + env(safe-area-inset-right));
-    bottom: calc(96px + env(safe-area-inset-bottom));
-    width: 300px;
-    border-radius: 16px;
-    padding: 16px;
-    overflow-y: auto;
+    right: 12px;
+    top: 70px;
+    width: 264px;
+    max-height: calc(100% - 290px);
+  }
+  .gb-stat-toggle {
+    display: none;
   }
 }
 
 @media (max-width: 899.98px) {
+  /* Compact one-row header */
+  .gb-builder-header {
+    margin: 6px;
+    padding: 5px 6px;
+    gap: 6px;
+  }
+  .gb-builder-header .gb-btn {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 9px;
+  }
+  .gb-builder-header .gb-builder-back {
+    flex: 0 0 36px;
+    width: 36px;
+    padding: 0;
+  }
+  .gb-builder-name {
+    font-size: 13px;
+    padding: 7px 8px;
+  }
+
+  /* Compact part cards */
+  .gb-builder-strip {
+    padding: 4px 8px;
+  }
+  .gb-builder .gb-card {
+    width: auto;
+    min-width: 120px;
+    max-width: 150px;
+    padding: 8px;
+  }
+  .gb-builder .gb-card .gb-card-name {
+    font-size: 13px;
+  }
+  .gb-builder .gb-card .gb-card-blurb {
+    font-size: 11px;
+  }
+  .gb-builder .gb-card .gb-card-note {
+    font-size: 10px;
+  }
+  .gb-builder .gb-card .gb-card-reason {
+    font-size: 10px;
+  }
+
+  /* Compact tabs + STATS toggle */
+  .gb-builder-tabrow {
+    padding: 2px 8px 8px;
+  }
+  .gb-builder .gb-tab {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+  .gb-builder .gb-stat-toggle {
+    min-height: 34px;
+    padding: 6px 12px;
+    font-size: 11px;
+    flex: 0 0 auto;
+  }
+
+  /* Drawer: opened ONLY by the STATS toggle; sits flush on the dock,
+     capped at 45dvh so the gun stays visible above it. */
   .gb-stat-panel {
-    left: 0;
-    right: 0;
-    bottom: 0;
-    max-height: 42vh;
+    display: none;
+    left: 8px;
+    right: 8px;
+    top: auto;
+    bottom: var(--gb-dock-h, 140px);
+    max-height: 45dvh;
     border-radius: 16px 16px 0 0;
-    padding: 10px 16px calc(12px + env(safe-area-inset-bottom));
-    transform: translateY(calc(100% - 46px));
-    transition: transform 0.22s ease;
-    overflow-y: auto;
   }
   .gb-stat-panel.gb-open {
-    transform: translateY(0);
+    display: flex;
   }
-  .gb-stat-drawer-handle {
-    display: block;
+  .gb-stat-close {
+    display: inline-flex;
   }
-}
-
-.gb-stat-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 12px;
-}
-.gb-stat-row .gb-stat-label {
-  flex: 0 0 92px;
-  color: var(--gb-text-dim);
-}
-.gb-stat-row .gb-stat-bar {
-  position: relative;
-  flex: 1;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.gb-stat-row .gb-stat-bar-fill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: var(--gb-accent);
-  border-radius: 3px;
-}
-.gb-stat-row .gb-stat-value {
-  flex: 0 0 48px;
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-.gb-stat-delta {
-  font-size: 10px;
-  margin-left: 4px;
-  font-weight: 700;
-}
-.gb-stat-delta.gb-better {
-  color: var(--gb-good);
-}
-.gb-stat-delta.gb-worse {
-  color: var(--gb-danger);
 }
 
 /* ---------------------------------------------------------------------

@@ -32,9 +32,17 @@ export class BuilderScreen extends Screen {
     this.build = copyBuild((params && params.build) || ctx.save.loadLastBuild() || DEFAULT_BUILD);
     this.slot = "receiver";
     this.previewValue = undefined;   // part id | null (None) | undefined (no preview)
-    this.pendingTapValue = undefined; // touch two-tap tracking
     this.statOpen = false;
     this._timers = [];
+
+    // Match style.css's mobile breakpoint exactly. Created before the DOM /
+    // gun so the first _autoFrame already uses the mobile framing offset.
+    this._mq = window.matchMedia("(max-width: 899.98px)");
+    this._mqHandler = () => {
+      this._applyLayout();
+      this._autoFrame();
+    };
+    this._mq.addEventListener("change", this._mqHandler);
 
     // ---- Scene ----
     this.scene = new THREE.Scene();
@@ -79,10 +87,6 @@ export class BuilderScreen extends Screen {
     this._renderTabs();
     this._renderCards();
     this._renderPanel();
-
-    this._mq = window.matchMedia("(max-width: 900px)");
-    this._mqHandler = () => this._applyLayout();
-    this._mq.addEventListener("change", this._mqHandler);
     this._applyLayout();
   }
 
@@ -97,19 +101,16 @@ export class BuilderScreen extends Screen {
       flexDirection: "column", pointerEvents: "none",
     });
 
-    // Header row
+    // Header row (single row on mobile — compact styles in style.css)
     const header = document.createElement("div");
-    header.className = "gb-panel";
-    Object.assign(header.style, {
-      display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap",
-      margin: "8px", padding: "8px 10px", pointerEvents: "auto",
-    });
+    header.className = "gb-panel gb-builder-header";
 
     const menuBtn = this._mkBtn("‹", () => {
       this.ctx.save.saveLastBuild(this.build);
       this.ctx.manager.goTo("menu");
     });
     menuBtn.title = "Back to menu";
+    menuBtn.classList.add("gb-builder-back");
     header.appendChild(menuBtn);
 
     this.nameInput = document.createElement("input");
@@ -117,11 +118,7 @@ export class BuilderScreen extends Screen {
     this.nameInput.maxLength = 24;
     this.nameInput.value = this.build.name || "";
     this.nameInput.placeholder = "Build name";
-    Object.assign(this.nameInput.style, {
-      flex: "1", minWidth: "90px", background: "#22262c",
-      border: "1px solid #3a3f46", color: "#eee", padding: "8px 10px",
-      borderRadius: "6px", fontSize: "15px",
-    });
+    this.nameInput.className = "gb-builder-name";
     this.nameInput.addEventListener("input", () => {
       this.build.name = this.nameInput.value.trim() || "Untitled";
     });
@@ -140,46 +137,54 @@ export class BuilderScreen extends Screen {
     spacer.style.flex = "1";
     this.root.appendChild(spacer);
 
-    // Stat panel
+    // Stat panel: desktop right column / mobile bottom drawer (style.css).
+    // The panel only clips; .gb-stat-body is the scroller — see the note in
+    // style.css about the composited-scroller white-block artifact.
     this.statPanel = document.createElement("div");
-    this.statPanel.className = "gb-panel";
-    Object.assign(this.statPanel.style, {
-      pointerEvents: "auto", overflowY: "auto", padding: "10px 12px",
+    this.statPanel.className = "gb-panel gb-stat-panel";
+
+    const statHead = document.createElement("div");
+    statHead.className = "gb-stat-head";
+    this.statTitle = document.createElement("div");
+    this.statTitle.className = "gb-stat-title";
+    this.statTitle.textContent = "STATS";
+    statHead.appendChild(this.statTitle);
+    const statClose = this._mkBtn("✕", () => {
+      this.statOpen = false;
+      this._applyLayout();
     });
+    statClose.classList.add("gb-stat-close");
+    statHead.appendChild(statClose);
+    this.statPanel.appendChild(statHead);
+
+    this.statBody = document.createElement("div");
+    this.statBody.className = "gb-stat-body";
+    this.statPanel.appendChild(this.statBody);
     this.root.appendChild(this.statPanel);
 
     // Bottom dock: card strip + tab row
-    const dock = document.createElement("div");
-    Object.assign(dock.style, { pointerEvents: "auto" });
+    this.dock = document.createElement("div");
+    this.dock.style.pointerEvents = "auto";
 
     this.cardStrip = document.createElement("div");
-    Object.assign(this.cardStrip.style, {
-      display: "flex", gap: "8px", overflowX: "auto",
-      padding: "6px 10px", WebkitOverflowScrolling: "touch",
-    });
-    dock.appendChild(this.cardStrip);
+    this.cardStrip.className = "gb-builder-strip";
+    this.dock.appendChild(this.cardStrip);
 
     const tabRow = document.createElement("div");
-    Object.assign(tabRow.style, {
-      display: "flex", gap: "6px", alignItems: "center",
-      padding: "2px 10px 10px",
-    });
+    tabRow.className = "gb-builder-tabrow";
     this.tabScroller = document.createElement("div");
-    Object.assign(this.tabScroller.style, {
-      display: "flex", gap: "6px", overflowX: "auto", flex: "1",
-      WebkitOverflowScrolling: "touch",
-    });
+    this.tabScroller.className = "gb-builder-tabscroll";
     tabRow.appendChild(this.tabScroller);
 
     this.statToggle = this._mkBtn("STATS", () => {
       this.statOpen = !this.statOpen;
       this._applyLayout();
     });
-    this.statToggle.style.flex = "0 0 auto";
+    this.statToggle.classList.add("gb-stat-toggle");
     tabRow.appendChild(this.statToggle);
 
-    dock.appendChild(tabRow);
-    this.root.appendChild(dock);
+    this.dock.appendChild(tabRow);
+    this.root.appendChild(this.dock);
 
     ui.appendChild(this.root);
   }
@@ -197,22 +202,11 @@ export class BuilderScreen extends Screen {
 
   _applyLayout() {
     const mobile = this._mq.matches;
-    if (mobile) {
-      Object.assign(this.statPanel.style, {
-        position: "absolute", left: "8px", right: "8px", top: "auto",
-        bottom: "175px", width: "auto", maxHeight: "38vh",
-        display: this.statOpen ? "block" : "none", zIndex: "5",
-      });
-      this.statToggle.style.display = "";
-      this.statToggle.textContent = this.statOpen ? "STATS ▾" : "STATS ▴";
-    } else {
-      Object.assign(this.statPanel.style, {
-        position: "absolute", right: "12px", top: "70px", left: "auto",
-        bottom: "auto", width: "264px", maxHeight: "calc(100% - 290px)",
-        display: "block", zIndex: "5",
-      });
-      this.statToggle.style.display = "none";
-    }
+    // The mobile drawer sits flush on top of the dock, whose height varies
+    // with the active slot's cards — expose it to style.css as a CSS var.
+    this.root.style.setProperty("--gb-dock-h", `${this.dock.offsetHeight}px`);
+    this.statPanel.classList.toggle("gb-open", mobile && this.statOpen);
+    this.statToggle.textContent = mobile && this.statOpen ? "STATS ✕" : "STATS";
   }
 
   // ------------------------------------------------------------------ 3D
@@ -241,6 +235,9 @@ export class BuilderScreen extends Screen {
     dist = clamp(dist, 0.55, 2.8);
 
     this.controls.target.copy(sphere.center);
+    // Mobile: aim slightly below the gun so it renders in the upper half of
+    // the screen, clear of the bottom dock and the STATS drawer (45dvh).
+    if (this._mq && this._mq.matches) this.controls.target.y -= dist * 0.16;
     const dir = this.camera.position.clone().sub(this.controls.target);
     if (dir.lengthSq() < 1e-6) dir.set(0.5, 0.25, 1);
     dir.normalize();
@@ -296,25 +293,21 @@ export class BuilderScreen extends Screen {
     for (const entry of this._cardEntries()) {
       const card = document.createElement("div");
       card.className = "gb-card";
-      Object.assign(card.style, {
-        flex: "0 0 auto", width: "150px", cursor: "pointer",
-        padding: "8px 10px", boxSizing: "border-box",
-      });
 
       const nameEl = document.createElement("div");
+      nameEl.className = "gb-card-name";
       nameEl.textContent = entry.name;
-      Object.assign(nameEl.style, { fontWeight: "600", fontSize: "14px" });
       card.appendChild(nameEl);
 
       const blurbEl = document.createElement("div");
+      blurbEl.className = "gb-card-blurb";
       blurbEl.textContent = entry.blurb;
-      Object.assign(blurbEl.style, { fontSize: "12px", opacity: "0.75", marginTop: "2px" });
       card.appendChild(blurbEl);
 
       if (entry.note) {
         const noteEl = document.createElement("div");
+        noteEl.className = "gb-card-note";
         noteEl.textContent = entry.note;
-        Object.assign(noteEl.style, { fontSize: "11px", opacity: "0.6", marginTop: "2px" });
         card.appendChild(noteEl);
       }
 
@@ -325,18 +318,15 @@ export class BuilderScreen extends Screen {
       }
 
       const equipped = equippedValue === entry.value;
-      if (equipped) {
-        card.classList.add("gb-active");
-        card.style.outline = `2px solid ${ACCENT}`;
-      }
+      if (equipped) card.classList.add("gb-selected");
 
       if (!compat.ok) {
         card.classList.add("gb-disabled");
-        card.style.opacity = "0.45";
         const reasonEl = document.createElement("div");
+        reasonEl.className = "gb-card-reason";
         reasonEl.textContent = compat.reason || "Incompatible";
-        Object.assign(reasonEl.style, { fontSize: "11px", color: BAD, marginTop: "3px" });
         card.appendChild(reasonEl);
+        // Incompatible: tap explains why — never equips, never opens a panel.
         card.addEventListener("click", () => {
           this._toast(compat.reason || "Incompatible with this receiver");
         });
@@ -344,7 +334,7 @@ export class BuilderScreen extends Screen {
         continue;
       }
 
-      // Desktop hover preview
+      // Desktop hover preview (panel is always visible there)
       if (!this.ctx.input.isTouch) {
         card.addEventListener("mouseenter", () => {
           if (!equipped) this._setPreview(entry.value);
@@ -352,25 +342,18 @@ export class BuilderScreen extends Screen {
         card.addEventListener("mouseleave", () => this._clearPreview());
       }
 
+      // Single tap/click equips immediately — no two-tap preview flow.
       card.addEventListener("click", () => {
         if (equipped) return;
-        if (this.ctx.input.isTouch && this.pendingTapValue !== entry.value) {
-          // first tap: preview
-          this.pendingTapValue = entry.value;
-          this._setPreview(entry.value);
-          for (const c of this.cardStrip.children) c.style.boxShadow = "";
-          card.style.boxShadow = `0 0 0 2px ${ACCENT} inset`;
-          if (this._mq.matches && !this.statOpen) {
-            this.statOpen = true;
-            this._applyLayout();
-          }
-          return;
-        }
         this._equip(entry.value);
       });
 
       this.cardStrip.appendChild(card);
     }
+
+    // Strip height can change with the slot's card content — keep the
+    // drawer anchor (--gb-dock-h) in sync.
+    if (this.dock) this._applyLayout();
   }
 
   // ------------------------------------------------------------------ Preview / equip
@@ -393,8 +376,6 @@ export class BuilderScreen extends Screen {
 
   _clearPreview() {
     this.previewValue = undefined;
-    this.pendingTapValue = undefined;
-    for (const c of this.cardStrip.children) c.style.boxShadow = "";
     this._renderPanel();
   }
 
@@ -418,7 +399,6 @@ export class BuilderScreen extends Screen {
     }
 
     this.previewValue = undefined;
-    this.pendingTapValue = undefined;
     this._rebuildGun();
     this._renderCards();
     this._renderPanel();
@@ -427,15 +407,9 @@ export class BuilderScreen extends Screen {
   // ------------------------------------------------------------------ Stat panel
 
   _renderPanel(previewBuild) {
-    this.statPanel.textContent = "";
-
-    const title = document.createElement("div");
-    title.textContent = previewBuild ? "STATS — PREVIEW" : "STATS";
-    Object.assign(title.style, {
-      fontWeight: "700", fontSize: "13px", letterSpacing: "0.06em",
-      color: previewBuild ? ACCENT : "#dfe3e8", marginBottom: "6px",
-    });
-    this.statPanel.appendChild(title);
+    this.statTitle.textContent = previewBuild ? "STATS — PREVIEW" : "STATS";
+    this.statTitle.classList.toggle("gb-preview", !!previewBuild);
+    this.statBody.textContent = "";
 
     let baseStats, showStats, diff = null;
     try {
@@ -498,7 +472,7 @@ export class BuilderScreen extends Screen {
       }
       row.appendChild(valEl);
 
-      this.statPanel.appendChild(row);
+      this.statBody.appendChild(row);
     }
   }
 
@@ -635,10 +609,12 @@ export class BuilderScreen extends Screen {
 
   _toast(text) {
     const t = document.createElement("div");
-    t.className = "gb-toast";
+    // .gb-toast is opacity 0 until .gb-show; it also anchors to the viewport
+    // bottom — pin it just below the header instead (clear of gun + dock).
+    t.className = "gb-toast gb-show";
     t.textContent = text;
     Object.assign(t.style, {
-      position: "absolute", left: "50%", top: "72px",
+      position: "absolute", left: "50%", top: "72px", bottom: "auto",
       transform: "translateX(-50%)", pointerEvents: "none", zIndex: "30",
     });
     this.root.appendChild(t);

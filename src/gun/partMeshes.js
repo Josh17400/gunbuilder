@@ -28,6 +28,7 @@ const YELLOW = 0xf2c14e; // nailer hazard
 const BRASS = 0xc8a24a;
 const COPPER = 0xb87333;
 const RED = 0xd83a3a;
+const RUBBER = 0x3d352e; // dark recoil-pad rubber (warmer than GUNMETAL/BLACK)
 
 // ---------------------------------------------------------------------------
 // Primitive helpers — build, rotate, translate, color, all BEFORE merging.
@@ -122,14 +123,14 @@ const BUILDERS = {
     const root = fuse([
       makeBox(0.034, 0.036, 0.19, 0, 0.016, -0.015, GUNMETAL), // slide
       makeBox(0.03, 0.035, 0.13, 0, -0.012, -0.01, BLACK), // frame
-      makeBox(0.03, 0.09, 0.045, 0, -0.065, 0.05, BLACK, { rx: -0.25 }), // grip
+      makeBox(0.036, 0.1, 0.058, 0, -0.068, 0.045, BLACK, { rx: -0.25 }), // grip / mag well column
       makeBox(0.008, 0.006, 0.05, 0, -0.038, 0.005, MID), // trigger guard bar
       makeBox(0.008, 0.008, 0.01, 0, 0.038, 0.06, MID), // rear sight nub
       makeBox(0.005, 0.009, 0.006, 0, 0.038, -0.1, MID), // front sight nub
     ]);
     const sockets = addSockets(root, {
       barrel: [0, 0, -0.11],
-      mag: [0, -0.035, 0.05],
+      mag: [0, -0.024, 0.036],
       stock: [0, 0, 0.075],
       grip: [0, -0.03, 0.05],
       optic: [0, 0.034, 0.02],
@@ -137,6 +138,9 @@ const BUILDERS = {
       laser: [0.02, -0.005, -0.05],
       eye: [0, 0.054, 0.03],
     });
+    // Mags insert down the grip column: mags bake in a +0.1 forward cant, so
+    // -0.35 here yields a net -0.25 — exactly the grip rake above.
+    sockets.mag.rotation.x = -0.35;
     return { object: root, sockets };
   },
 
@@ -553,10 +557,14 @@ const BUILDERS = {
   },
 
   stk_standard() {
+    // Classic solid rifle stock: sloped wrist into a dropped belly, straight
+    // comb line, raised cheek-rest step, contrast butt plate.
     const root = fuse([
-      makeBox(0.035, 0.08, 0.22, 0, -0.01, 0.12, TAN), // solid body
-      makeBox(0.03, 0.024, 0.12, 0, 0.038, 0.15, TAN), // comb
-      makeBox(0.04, 0.1, 0.02, 0, -0.01, 0.24, BLACK), // buttpad
+      makeBox(0.03, 0.05, 0.09, 0, -0.022, 0.04, TAN, { rx: 0.42 }), // wrist wedge
+      makeBox(0.032, 0.036, 0.23, 0, 0.006, 0.115, TAN, { rx: 0.05 }), // comb spine
+      makeBox(0.034, 0.088, 0.17, 0, -0.036, 0.158, TAN, { rx: 0.2 }), // belly (drops to butt)
+      makeBox(0.037, 0.018, 0.095, 0, 0.026, 0.178, RUBBER, { rx: 0.05 }), // cheek-rest step
+      makeBox(0.038, 0.126, 0.018, 0, -0.028, 0.246, BLACK, { rx: 0.1 }), // butt plate
     ]);
     return { object: root, sockets: {} };
   },
@@ -571,10 +579,15 @@ const BUILDERS = {
   },
 
   stk_cushion() {
+    // Recoil-absorbing pad stock: metal arm into a fat rubber cushion built
+    // from slightly-inset stacked slabs (rounded feel) with a retention strap.
     const root = fuse([
-      makeBox(0.038, 0.08, 0.18, 0, -0.005, 0.1, GUNMETAL), // body
-      makeCyl(0.048, 0.048, 0.046, 0, -0.005, 0.215, TAN, { rz: Math.PI / 2 }), // rounded pad
-      makeBox(0.012, 0.09, 0.16, 0, -0.005, 0.12, BLACK), // strap spine
+      makeBox(0.032, 0.06, 0.13, 0, -0.006, 0.065, GUNMETAL, { rx: 0.08 }), // arm
+      makeBox(0.044, 0.1, 0.016, 0, -0.012, 0.138, BLACK, { rx: 0.06 }), // pad base plate
+      makeBox(0.05, 0.112, 0.046, 0, -0.013, 0.168, RUBBER, { rx: 0.06 }), // cushion slab
+      makeBox(0.043, 0.098, 0.036, 0, -0.014, 0.207, RUBBER, { rx: 0.06 }), // cushion mid (inset)
+      makeBox(0.034, 0.08, 0.022, 0, -0.015, 0.234, RUBBER, { rx: 0.06 }), // cushion tail
+      makeBox(0.054, 0.118, 0.013, 0, -0.013, 0.182, TAN, { rx: 0.06 }), // retention strap
     ]);
     return { object: root, sockets: {} };
   },

@@ -404,9 +404,12 @@ All extend Screen. ctx = { renderer, input, audio, save, manager }.
   above it horizontal scroll of part cards (name + blurb; selected highlighted; incompatible greyed
   with reason subtext, still tappable to read reason but not equip). Stat panel: right column
   (desktop ≥900px) / toggleable drawer (mobile) — rows: label, bar (normalized to STAT_DEFS min/max),
-  value. Hover (mouse) or first-tap (touch) previews diffStats vs current: colored ▲▼ deltas
-  (green=better via lowerIsBetter). Second tap / click equips (sanitizeBuild after receiver swap,
-  toast dropped parts). Header: name input, Save, Load (list w/ delete), "TEST →" → rangeSelect.
+  value. Click/tap on a compatible card EQUIPS IMMEDIATELY (sanitizeBuild after EVERY equip,
+  toast dropped parts); incompatible cards toast the reason. Desktop mouse hover previews
+  diffStats as colored ▲▼ deltas (green=better via lowerIsBetter). The mobile stat drawer
+  (max 45dvh, inner .gb-stat-body scroller — the panel itself must be overflow:hidden or
+  Chromium paints a white composited-scroll artifact) opens ONLY via the STATS toggle.
+  Header: name input, Save, Load (list w/ delete), "TEST →" → rangeSelect.
   Nullable slots get a "None" card.
 - **RangeSelectScreen** `enter(ctx, {build})`: two big cards — "Test Lanes" / "Clearing Course"
   (+ best time shown), build summary line, Back.

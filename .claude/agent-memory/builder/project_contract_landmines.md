@@ -15,3 +15,4 @@ Gunbuilder is built by parallel agents, each owning modules per CONTRACTS.md; th
 - Lighting ownership is doubled: world contract says static-range world includes "Sun: 1 directional + hemisphere", but the screens brief says screens own lights. Screens add lights; if worlds also do, scenes will be double-lit.
 - `hud.showFinish({penalties})` shape undefined — screens pass total penalty seconds as a number.
 - Screens assume #ui children control pointer-events (screen roots use pointer-events:none + auto on interactive children) so OrbitControls on the canvas works under the builder UI.
+- CONTRACTS.md still specifies the builder's touch flow as "first-tap previews, second tap equips" — this was DELIBERATELY replaced (2026-07-02, user request) with one-tap equip + STATS-toggle-only drawer. The contract text is stale on this point; don't "fix" the screen back to spec. See [[webgl-overlay-compositing-landmine]] for why the drawer is structured panel(clip)/body(scroll).
